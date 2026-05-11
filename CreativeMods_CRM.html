@@ -777,7 +777,7 @@ function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  saveLocal();syncToSheets();
+  markDirty(id,rt);saveLocal();syncToSheets();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
@@ -796,7 +796,7 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
     }
   }
   arr[idx].followups=fus;
-  saveLocal();syncToSheets();
+  markDirty(recId,rt);saveLocal();syncToSheets();
   toast(undo?"Marked as pending":"Follow-up complete! ✓");
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
@@ -808,7 +808,7 @@ function deleteFollowUp(recId,fuId,rt){
     var idx=getRecordIdx(recId,rt);if(idx===-1)return;
     var arr=rt==="lead"?leads:vendors;
     arr[idx].followups=(arr[idx].followups||[]).filter(function(fu){return fu.id!==fuId;});
-    saveLocal();syncToSheets();
+    markDirty(recId,rt);saveLocal();syncToSheets();
     toast("Follow-up removed.");
     refreshProfile(recId,rt);
     renderDash();checkAlerts();
@@ -836,7 +836,7 @@ function renameAtt(attIdx,id,rt){
     var atts2=parseAtts(recArr[idx].attachments);
     if(atts2[attIdx])atts2[attIdx].name=newName;
     recArr[idx].attachments=stringifyAtts(atts2);
-    saveLocal();syncToSheets();
+    markDirty(id,rt);saveLocal();syncToSheets();
     toast("Attachment renamed!");
     refreshProfile(id,rt);
   });
@@ -993,7 +993,7 @@ async function uploadOnFile(file,id,rt){
   var atts=parseAtts(arr[idx].attachments);
   atts.push({name:file.name,url:result.fileUrl,uploaded:true});
   arr[idx].attachments=stringifyAtts(atts);
-  saveLocal();syncToSheets();
+  markDirty(id,rt);saveLocal();syncToSheets();
 }
 
 async function deleteAtt(attIdx,id,rt){
@@ -1004,7 +1004,7 @@ async function deleteAtt(attIdx,id,rt){
   var atts=parseAtts(arr[idx].attachments);
   atts.splice(attIdx,1);
   arr[idx].attachments=stringifyAtts(atts);
-  saveLocal();
+  markDirty(id,rt);saveLocal();
   toast("Attachment removed. Syncing...");
   refreshProfile(id,rt);
   try{await syncToSheets();toast("Attachment removed and synced!");}catch(e){}
@@ -1212,7 +1212,7 @@ function saveNewNote(id,rt){
   var arr=rt==='lead'?leads:vendors;
   var nts=arr[idx].notes||[];
   nts.push({id:gid(),text:txt,ts:new Date().toISOString()});
-  arr[idx].notes=nts;saveLocal();syncToSheets();
+  arr[idx].notes=nts;markDirty(id,rt);saveLocal();syncToSheets();
   toast('Note saved!');refreshProfile(id,rt);
 }
 function openNoteEdit(id,nid,rt){
@@ -1234,7 +1234,7 @@ function saveNoteEdit(id,nid,rt){
   var nts=arr[idx].notes||[];
   var ni=nts.findIndex(function(n){return n.id===nid;});if(ni===-1)return;
   nts[ni].text=txt;nts[ni].ts=new Date().toISOString();
-  arr[idx].notes=nts;saveLocal();syncToSheets();
+  arr[idx].notes=nts;markDirty(id,rt);saveLocal();syncToSheets();
   toast('Note updated!');refreshProfile(id,rt);
 }
 function deleteNote(id,nid,rt){
@@ -1242,7 +1242,7 @@ function deleteNote(id,nid,rt){
     var idx=getRecordIdx(id,rt);if(idx===-1)return;
     var arr=rt==='lead'?leads:vendors;
     arr[idx].notes=(arr[idx].notes||[]).filter(function(n){return n.id!==nid;});
-    saveLocal();syncToSheets();toast('Note deleted!');refreshProfile(id,rt);
+    markDirty(id,rt);saveLocal();syncToSheets();toast('Note deleted!');refreshProfile(id,rt);
   });
 }
 
