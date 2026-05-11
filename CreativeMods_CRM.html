@@ -207,7 +207,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .topbar{padding:8px 12px;gap:8px;flex-wrap:nowrap}
   .topbar img{height:36px!important}
   .top-search{max-width:none;flex:1}
-  .sync-indicator{display:none}
+  .sync-indicator{display:flex;font-size:10px}
+  #sync-label{display:none}
   .main{padding:12px}
   .stats{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
   .sc{padding:12px}
@@ -536,6 +537,8 @@ async function syncToSheets(){
     }
 
     pendingChanges=false;
+    // After pushing, pull fresh data so this device reflects any other changes too
+    await pullFromSheets();
     setSyncStatus("synced");
   }catch(e){
     setSyncStatus("error");
@@ -544,9 +547,33 @@ async function syncToSheets(){
   }
 }
 
+async function pullFromSheets(){
+  try{
+    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
+    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
+    var sheetsLeads=dedupe(results[0].map(r2l));
+    var sheetsVendors=dedupe(results[1].map(r2v));
+    if(sheetsLeads.length>0){leads=sheetsLeads;}
+    if(sheetsVendors.length>0){vendors=sheetsVendors;}
+    dirtyIds={leads:{},vendors:{}};
+    pendingChanges=false;
+    saveLocal();
+    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+  }catch(e){}
+}
+
+// Auto-poll every 30 seconds so the OTHER device gets updates without pressing anything
+setInterval(async function(){
+  if(syncInProgress)return;
+  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
+  await pullFromSheets();
+},30000);
+
 async function apiGet(sheet){
   try{
-    var r=await fetch(API+"?action=getAll&sheet="+sheet,{method:"GET",mode:"cors"});
+    // Cache-bust with timestamp so Google never returns a stale cached response
+    var url=API+"?action=getAll&sheet="+sheet+"&_="+Date.now();
+    var r=await fetch(url,{method:"GET",mode:"cors",cache:"no-store"});
     var d=await r.json();
     return d.slice(1).filter(function(row){return row[0];});
   }catch(e){return[];}
@@ -1423,19 +1450,8 @@ document.getElementById("dash-sync-btn").addEventListener("click",async function
   toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    // STEP 1: Push any local changes made on THIS device first
-    await syncToSheets();
-    // STEP 2: Pull latest from Sheets so we get changes from other devices
-    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
-    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
-    var sheetsLeads=dedupe(results[0].map(r2l));
-    var sheetsVendors=dedupe(results[1].map(r2v));
-    if(sheetsLeads.length>0){leads=sheetsLeads;}
-    if(sheetsVendors.length>0){vendors=sheetsVendors;}
-    dirtyIds={leads:{},vendors:{}};
-    pendingChanges=false;
-    saveLocal();
-    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+    await syncToSheets(); // push dirty changes first
+    await pullFromSheets(); // then pull latest from all devices
     setSyncStatus("synced");
     toast("Sync complete! Data is up to date.");
   }catch(e){
