@@ -483,11 +483,15 @@ function markDeleted(id,rt){
 }
 
 async function syncToSheets(){
-  if(syncInProgress)return; // Prevent overlapping syncs
+  if(syncInProgress)return;
+  // SAFETY RULE: never push to Sheets if nothing was changed locally - prevents wiping data
+  var hasDirtyLeads=Object.keys(dirtyIds.leads).length>0;
+  var hasDirtyVendors=Object.keys(dirtyIds.vendors).length>0;
+  if(!hasDirtyLeads && !hasDirtyVendors){setSyncStatus("synced");return;}
   syncInProgress=true;
   setSyncStatus("syncing");
   try{
-    // Get current row index map from Sheets (just IDs, fast)
+    // Get current row index map from Sheets so we know update vs add
     var leadRows=await apiGet("Leads");
     var vendorRows=await apiGet("Vendors");
     var leadIdxMap={};
@@ -495,7 +499,7 @@ async function syncToSheets(){
     leadRows.forEach(function(r,i){leadIdxMap[r[0]]=i+1;});
     vendorRows.forEach(function(r,i){vendorIdxMap[r[0]]=i+1;});
 
-    // Only sync dirty leads
+    // Only push dirty leads
     var dirtyLeadIds=Object.keys(dirtyIds.leads);
     for(var i=0;i<dirtyLeadIds.length;i++){
       var id=dirtyLeadIds[i];
@@ -513,7 +517,7 @@ async function syncToSheets(){
       delete dirtyIds.leads[id];
     }
 
-    // Only sync dirty vendors
+    // Only push dirty vendors
     var dirtyVendorIds=Object.keys(dirtyIds.vendors);
     for(var j=0;j<dirtyVendorIds.length;j++){
       var vid=dirtyVendorIds[j];
@@ -531,7 +535,7 @@ async function syncToSheets(){
       delete dirtyIds.vendors[vid];
     }
 
-    pendingChanges=Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0;
+    pendingChanges=false;
     setSyncStatus("synced");
   }catch(e){
     setSyncStatus("error");
@@ -1371,73 +1375,43 @@ function cleanFollowUps(){
 }
 
 async function loadAll(){
-  // Step 1: Always load local storage first - it is ALWAYS the source of truth
-  var hasLocal=loadLocal();
+  // Step 1: Show whatever is in local storage immediately while we fetch Sheets
+  loadLocal();
   cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
   var loadEl=document.getElementById("dash-loading");
   if(loadEl)loadEl.style.display="block";
   setSyncStatus("syncing");
 
-  // Step 2: Try to get anything from Sheets that we don't have locally
+  // Step 2: Pull from Sheets - Sheets is ALWAYS the master copy on startup
+  // NEVER push on startup - only pull. Pushing only happens when user makes a change.
   try{
     var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
     function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
     var sheetsLeads=dedupe(results[0].map(r2l));
     var sheetsVendors=dedupe(results[1].map(r2v));
 
-    // SAFE merge: Sheets is the source of truth on startup.
-    // For existing records: use Sheets version of all fields, but also
-    // fold in any notes/followups that only exist locally (dirty local additions).
-    function safeMerge(local,remote){
-      var localMap={};
-      local.forEach(function(r){localMap[r.id]=r;});
-      var remoteMap={};
-      remote.forEach(function(r){remoteMap[r.id]=r;});
-      var mergedArr=[];
-      var changed=0;
-      remote.forEach(function(r){
-        var loc=localMap[r.id];
-        if(!loc){
-          mergedArr.push(r);changed++;
-        } else {
-          // Sheets wins for all scalar fields; preserve local-only notes/followups
-          var sheetsNoteIds={};
-          (r.notes||[]).forEach(function(n){sheetsNoteIds[n.id]=true;});
-          var extraNotes=[];
-          (loc.notes||[]).forEach(function(n){if(!sheetsNoteIds[n.id]){extraNotes.push(n);changed++;}});
-          var sheetsFuIds={};
-          (r.followups||[]).forEach(function(fu){sheetsFuIds[fu.id]=true;});
-          var extraFus=[];
-          (loc.followups||[]).forEach(function(fu){if(!sheetsFuIds[fu.id]){extraFus.push(fu);changed++;}});
-          var merged_rec=JSON.parse(JSON.stringify(r));
-          if(extraNotes.length>0){merged_rec.notes=(r.notes||[]).concat(extraNotes);}
-          if(extraFus.length>0){merged_rec.followups=(r.followups||[]).concat(extraFus);}
-          if(JSON.stringify(loc)!==JSON.stringify(merged_rec))changed++;
-          mergedArr.push(merged_rec);
-        }
-      });
-      local.forEach(function(l){if(!remoteMap[l.id]){mergedArr.push(l);changed++;}});
-      local.length=0;
-      mergedArr.forEach(function(r){local.push(r);});
-      return changed;
+    // Sheets wins for everything on startup - replace local with Sheets data
+    // This ensures opening on any device always shows the latest data
+    if(sheetsLeads.length>0){
+      leads=sheetsLeads;
+    }
+    if(sheetsVendors.length>0){
+      vendors=sheetsVendors;
     }
 
-    var addedLeads=safeMerge(leads,sheetsLeads);
-    var addedVendors=safeMerge(vendors,sheetsVendors);
+    // Clear dirty flags - we just loaded fresh from Sheets, nothing to push
+    dirtyIds={leads:{},vendors:{}};
+    pendingChanges=false;
 
-    if(addedLeads>0||addedVendors>0){
-      cleanFollowUps();saveLocal();renderDash();checkAlerts();renderLeads();renderVendors();
-    }
+    saveLocal();
+    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
     setSyncStatus("synced");
     if(loadEl)loadEl.style.display="none";
-
-    // Step 3: Push local data up to Sheets to make sure everything is there
-    syncToSheets().catch(function(){});
 
   }catch(e){
     setSyncStatus("error");
     if(loadEl)loadEl.style.display="none";
-    if(!hasLocal){toast("Could not load data. Check connection.",true);}
+    toast("Could not connect to Google Sheets. Showing local data.",true);
   }
 }
 
@@ -1449,80 +1423,26 @@ document.getElementById("dash-sync-btn").addEventListener("click",async function
   toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    await fullTwoWaySync();
+    // STEP 1: Push any local changes made on THIS device first
+    await syncToSheets();
+    // STEP 2: Pull latest from Sheets so we get changes from other devices
+    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
+    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
+    var sheetsLeads=dedupe(results[0].map(r2l));
+    var sheetsVendors=dedupe(results[1].map(r2v));
+    if(sheetsLeads.length>0){leads=sheetsLeads;}
+    if(sheetsVendors.length>0){vendors=sheetsVendors;}
+    dirtyIds={leads:{},vendors:{}};
+    pendingChanges=false;
+    saveLocal();
+    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+    setSyncStatus("synced");
     toast("Sync complete! Data is up to date.");
   }catch(e){
     setSyncStatus("error");
-    toast("Sync failed - your data is still saved locally.",true);
+    toast("Sync failed - check your connection.",true);
   }
 });
-
-async function fullTwoWaySync(){
-  // STEP 1: Pull latest data from Google Sheets
-  var leadRows=await apiGet("Leads");
-  var vendorRows=await apiGet("Vendors");
-
-  if(leadRows.length>0 || vendorRows.length>0){
-    // Convert Sheets rows to objects
-    var sheetsLeads=leadRows.map(function(r){return r2l(r);});
-    var sheetsVendors=vendorRows.map(function(r){return r2v(r);});
-
-    // Build lookup maps by ID
-    var sheetsLeadMap={};
-    sheetsLeads.forEach(function(l){sheetsLeadMap[l.id]=l;});
-    var sheetsVendorMap={};
-    sheetsVendors.forEach(function(v){sheetsVendorMap[v.id]=v;});
-
-    var localLeadMap={};
-    leads.forEach(function(l){localLeadMap[l.id]=l;});
-    var localVendorMap={};
-    vendors.forEach(function(v){localVendorMap[v.id]=v;});
-
-    // Merge: Sheets wins for any record not marked dirty locally
-    var mergedLeads=[];
-    // Add all Sheets leads, using local version only if dirty
-    sheetsLeads.forEach(function(sl){
-      if(dirtyIds.leads[sl.id] && dirtyIds.leads[sl.id]!=="delete" && localLeadMap[sl.id]){
-        mergedLeads.push(localLeadMap[sl.id]); // keep local dirty version
-      } else if(dirtyIds.leads[sl.id]==="delete"){
-        // skip - marked for deletion locally
-      } else {
-        mergedLeads.push(sl); // use Sheets version
-      }
-    });
-    // Add local-only leads (not yet in Sheets)
-    leads.forEach(function(ll){
-      if(!sheetsLeadMap[ll.id] && dirtyIds.leads[ll.id]!=="delete"){
-        mergedLeads.push(ll);
-      }
-    });
-
-    var mergedVendors=[];
-    sheetsVendors.forEach(function(sv){
-      if(dirtyIds.vendors[sv.id] && dirtyIds.vendors[sv.id]!=="delete" && localVendorMap[sv.id]){
-        mergedVendors.push(localVendorMap[sv.id]);
-      } else if(dirtyIds.vendors[sv.id]==="delete"){
-        // skip
-      } else {
-        mergedVendors.push(sv);
-      }
-    });
-    vendors.forEach(function(lv){
-      if(!sheetsVendorMap[lv.id] && dirtyIds.vendors[lv.id]!=="delete"){
-        mergedVendors.push(lv);
-      }
-    });
-
-    leads=mergedLeads;
-    vendors=mergedVendors;
-    saveLocal();
-    renderLeads();
-    renderVendors();
-  }
-
-  // STEP 2: Push any remaining dirty local changes up to Sheets
-  await syncToSheets();
-}
 document.getElementById("add-lead-btn").addEventListener("click",function(){openLF();});
 document.getElementById("add-vendor-btn").addEventListener("click",function(){openVF();});
 document.getElementById("lcancel").addEventListener("click",function(){closeLM();});
