@@ -1385,16 +1385,29 @@ async function loadAll(){
     var sheetsLeads=dedupe(results[0].map(r2l));
     var sheetsVendors=dedupe(results[1].map(r2v));
 
-    // SAFE merge: only add records from Sheets that don't exist locally
-    // Never remove or replace existing local records
+    // SAFE merge: add new records AND update followups/notes/attachments for existing ones
     function safeMerge(local,remote){
-      var localIds={};
-      local.forEach(function(r){localIds[r.id]=true;});
-      var added=0;
+      var localMap={};
+      local.forEach(function(r){localMap[r.id]=r;});
+      var changed=0;
       remote.forEach(function(r){
-        if(!localIds[r.id]){local.push(r);added++;}
+        if(!localMap[r.id]){
+          // New record not on this device - add it
+          local.push(r);changed++;
+        } else {
+          // Existing record - merge followups, notes, attachments from Sheets
+          var loc=localMap[r.id];
+          // Merge followups
+          var localFuIds={};
+          (loc.followups||[]).forEach(function(fu){localFuIds[fu.id]=true;});
+          (r.followups||[]).forEach(function(fu){if(!localFuIds[fu.id]){loc.followups=loc.followups||[];loc.followups.push(fu);changed++;}});
+          // Merge notes
+          var localNoteIds={};
+          (loc.notes||[]).forEach(function(n){localNoteIds[n.id]=true;});
+          (r.notes||[]).forEach(function(n){if(!localNoteIds[n.id]){loc.notes=loc.notes||[];loc.notes.push(n);changed++;}});
+        }
       });
-      return added;
+      return changed;
     }
 
     var addedLeads=safeMerge(leads,sheetsLeads);
