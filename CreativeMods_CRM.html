@@ -1385,28 +1385,40 @@ async function loadAll(){
     var sheetsLeads=dedupe(results[0].map(r2l));
     var sheetsVendors=dedupe(results[1].map(r2v));
 
-    // SAFE merge: add new records AND update followups/notes/attachments for existing ones
+    // SAFE merge: Sheets is the source of truth on startup.
+    // For existing records: use Sheets version of all fields, but also
+    // fold in any notes/followups that only exist locally (dirty local additions).
     function safeMerge(local,remote){
       var localMap={};
       local.forEach(function(r){localMap[r.id]=r;});
+      var remoteMap={};
+      remote.forEach(function(r){remoteMap[r.id]=r;});
+      var mergedArr=[];
       var changed=0;
       remote.forEach(function(r){
-        if(!localMap[r.id]){
-          // New record not on this device - add it
-          local.push(r);changed++;
+        var loc=localMap[r.id];
+        if(!loc){
+          mergedArr.push(r);changed++;
         } else {
-          // Existing record - merge followups, notes, attachments from Sheets
-          var loc=localMap[r.id];
-          // Merge followups
-          var localFuIds={};
-          (loc.followups||[]).forEach(function(fu){localFuIds[fu.id]=true;});
-          (r.followups||[]).forEach(function(fu){if(!localFuIds[fu.id]){loc.followups=loc.followups||[];loc.followups.push(fu);changed++;}});
-          // Merge notes
-          var localNoteIds={};
-          (loc.notes||[]).forEach(function(n){localNoteIds[n.id]=true;});
-          (r.notes||[]).forEach(function(n){if(!localNoteIds[n.id]){loc.notes=loc.notes||[];loc.notes.push(n);changed++;}});
+          // Sheets wins for all scalar fields; preserve local-only notes/followups
+          var sheetsNoteIds={};
+          (r.notes||[]).forEach(function(n){sheetsNoteIds[n.id]=true;});
+          var extraNotes=[];
+          (loc.notes||[]).forEach(function(n){if(!sheetsNoteIds[n.id]){extraNotes.push(n);changed++;}});
+          var sheetsFuIds={};
+          (r.followups||[]).forEach(function(fu){sheetsFuIds[fu.id]=true;});
+          var extraFus=[];
+          (loc.followups||[]).forEach(function(fu){if(!sheetsFuIds[fu.id]){extraFus.push(fu);changed++;}});
+          var merged_rec=JSON.parse(JSON.stringify(r));
+          if(extraNotes.length>0){merged_rec.notes=(r.notes||[]).concat(extraNotes);}
+          if(extraFus.length>0){merged_rec.followups=(r.followups||[]).concat(extraFus);}
+          if(JSON.stringify(loc)!==JSON.stringify(merged_rec))changed++;
+          mergedArr.push(merged_rec);
         }
       });
+      local.forEach(function(l){if(!remoteMap[l.id]){mergedArr.push(l);changed++;}});
+      local.length=0;
+      mergedArr.forEach(function(r){local.push(r);});
       return changed;
     }
 
@@ -1434,16 +1446,83 @@ document.getElementById("nb-leads").addEventListener("click",function(){nav("lea
 document.getElementById("nb-vendors").addEventListener("click",function(){nav("vendors");});
 document.getElementById("dash-addlead").addEventListener("click",function(){nav("leads");openLF();});
 document.getElementById("dash-sync-btn").addEventListener("click",async function(){
-  toast("Pushing local data to Sheets...");
+  toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    await syncToSheets();
-    toast("All data synced to Sheets!");
+    await fullTwoWaySync();
+    toast("Sync complete! Data is up to date.");
   }catch(e){
     setSyncStatus("error");
     toast("Sync failed - your data is still saved locally.",true);
   }
 });
+
+async function fullTwoWaySync(){
+  // STEP 1: Pull latest data from Google Sheets
+  var leadRows=await apiGet("Leads");
+  var vendorRows=await apiGet("Vendors");
+
+  if(leadRows.length>0 || vendorRows.length>0){
+    // Convert Sheets rows to objects
+    var sheetsLeads=leadRows.map(function(r){return r2l(r);});
+    var sheetsVendors=vendorRows.map(function(r){return r2v(r);});
+
+    // Build lookup maps by ID
+    var sheetsLeadMap={};
+    sheetsLeads.forEach(function(l){sheetsLeadMap[l.id]=l;});
+    var sheetsVendorMap={};
+    sheetsVendors.forEach(function(v){sheetsVendorMap[v.id]=v;});
+
+    var localLeadMap={};
+    leads.forEach(function(l){localLeadMap[l.id]=l;});
+    var localVendorMap={};
+    vendors.forEach(function(v){localVendorMap[v.id]=v;});
+
+    // Merge: Sheets wins for any record not marked dirty locally
+    var mergedLeads=[];
+    // Add all Sheets leads, using local version only if dirty
+    sheetsLeads.forEach(function(sl){
+      if(dirtyIds.leads[sl.id] && dirtyIds.leads[sl.id]!=="delete" && localLeadMap[sl.id]){
+        mergedLeads.push(localLeadMap[sl.id]); // keep local dirty version
+      } else if(dirtyIds.leads[sl.id]==="delete"){
+        // skip - marked for deletion locally
+      } else {
+        mergedLeads.push(sl); // use Sheets version
+      }
+    });
+    // Add local-only leads (not yet in Sheets)
+    leads.forEach(function(ll){
+      if(!sheetsLeadMap[ll.id] && dirtyIds.leads[ll.id]!=="delete"){
+        mergedLeads.push(ll);
+      }
+    });
+
+    var mergedVendors=[];
+    sheetsVendors.forEach(function(sv){
+      if(dirtyIds.vendors[sv.id] && dirtyIds.vendors[sv.id]!=="delete" && localVendorMap[sv.id]){
+        mergedVendors.push(localVendorMap[sv.id]);
+      } else if(dirtyIds.vendors[sv.id]==="delete"){
+        // skip
+      } else {
+        mergedVendors.push(sv);
+      }
+    });
+    vendors.forEach(function(lv){
+      if(!sheetsVendorMap[lv.id] && dirtyIds.vendors[lv.id]!=="delete"){
+        mergedVendors.push(lv);
+      }
+    });
+
+    leads=mergedLeads;
+    vendors=mergedVendors;
+    saveLocal();
+    renderLeads();
+    renderVendors();
+  }
+
+  // STEP 2: Push any remaining dirty local changes up to Sheets
+  await syncToSheets();
+}
 document.getElementById("add-lead-btn").addEventListener("click",function(){openLF();});
 document.getElementById("add-vendor-btn").addEventListener("click",function(){openVF();});
 document.getElementById("lcancel").addEventListener("click",function(){closeLM();});
