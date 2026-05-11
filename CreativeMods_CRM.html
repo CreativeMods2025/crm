@@ -468,50 +468,75 @@ function queueSync(){
   syncToSheets();
 }
 
+// Track which record IDs have changed since last sync
+var dirtyIds={leads:{},vendors:{}};
+var syncInProgress=false;
+
+function markDirty(id,rt){
+  if(rt==="lead")dirtyIds.leads[id]=true;
+  else dirtyIds.vendors[id]=true;
+}
+
+function markDeleted(id,rt){
+  if(rt==="lead")dirtyIds.leads[id]="delete";
+  else dirtyIds.vendors[id]="delete";
+}
+
 async function syncToSheets(){
+  if(syncInProgress)return; // Prevent overlapping syncs
+  syncInProgress=true;
   setSyncStatus("syncing");
   try{
-    await fullSync("Leads",leads,l2r);
-    await fullSync("Vendors",vendors,v2r);
-    pendingChanges=false;
+    // Get current row index map from Sheets (just IDs, fast)
+    var leadRows=await apiGet("Leads");
+    var vendorRows=await apiGet("Vendors");
+    var leadIdxMap={};
+    var vendorIdxMap={};
+    leadRows.forEach(function(r,i){leadIdxMap[r[0]]=i+1;});
+    vendorRows.forEach(function(r,i){vendorIdxMap[r[0]]=i+1;});
+
+    // Only sync dirty leads
+    var dirtyLeadIds=Object.keys(dirtyIds.leads);
+    for(var i=0;i<dirtyLeadIds.length;i++){
+      var id=dirtyLeadIds[i];
+      if(dirtyIds.leads[id]==="delete"){
+        if(leadIdxMap[id])await apiPost({action:"delete",sheet:"Leads",rowIndex:leadIdxMap[id]});
+      } else {
+        var rec=leads.filter(function(l){return l.id===id;})[0];
+        if(!rec)continue;
+        if(leadIdxMap[id]){
+          await apiPost({action:"update",sheet:"Leads",rowIndex:leadIdxMap[id],row:l2r(rec)});
+        } else {
+          await apiPost({action:"add",sheet:"Leads",row:l2r(rec)});
+        }
+      }
+      delete dirtyIds.leads[id];
+    }
+
+    // Only sync dirty vendors
+    var dirtyVendorIds=Object.keys(dirtyIds.vendors);
+    for(var j=0;j<dirtyVendorIds.length;j++){
+      var vid=dirtyVendorIds[j];
+      if(dirtyIds.vendors[vid]==="delete"){
+        if(vendorIdxMap[vid])await apiPost({action:"delete",sheet:"Vendors",rowIndex:vendorIdxMap[vid]});
+      } else {
+        var vrec=vendors.filter(function(v){return v.id===vid;})[0];
+        if(!vrec)continue;
+        if(vendorIdxMap[vid]){
+          await apiPost({action:"update",sheet:"Vendors",rowIndex:vendorIdxMap[vid],row:v2r(vrec)});
+        } else {
+          await apiPost({action:"add",sheet:"Vendors",row:v2r(vrec)});
+        }
+      }
+      delete dirtyIds.vendors[vid];
+    }
+
+    pendingChanges=Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0;
     setSyncStatus("synced");
   }catch(e){
     setSyncStatus("error");
-  }
-}
-
-async function fullSync(sheet,arr,toRow){
-  // Deduplicate local array first
-  var seen={};
-  arr=arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});
-  var existing=await apiGet(sheet);
-  // Safety: if local has data but Sheets returned nothing, fetch likely failed
-  if(arr.length>0&&existing.length===0){
-    // Try once more before aborting
-    existing=await apiGet(sheet);
-    if(existing.length===0){
-      throw new Error("Sheets returned empty for "+sheet+" - aborting to prevent data loss");
-    }
-  }
-  var existingIds=existing.map(function(r){return r[0];});
-  var localIds=arr.map(function(r){return r.id;});
-  // Only add truly new records (not updates - to keep sync fast)
-  var toAdd=arr.filter(function(r){return existingIds.indexOf(r.id)===-1;});
-  var toUpdate=arr.filter(function(r){return existingIds.indexOf(r.id)!==-1;});
-  var toDelete=existing.filter(function(r){return localIds.indexOf(r[0])===-1;});
-  // Add new records
-  for(var i=0;i<toAdd.length;i++){
-    await apiPost({action:"add",sheet:sheet,row:toRow(toAdd[i])});
-  }
-  // Update changed records
-  for(var j=0;j<toUpdate.length;j++){
-    var idx=existingIds.indexOf(toUpdate[j].id);
-    await apiPost({action:"update",sheet:sheet,rowIndex:idx+1,row:toRow(toUpdate[j])});
-  }
-  // Delete removed records (reverse order to keep indices correct)
-  for(var k=toDelete.length-1;k>=0;k--){
-    var didx=existingIds.indexOf(toDelete[k][0]);
-    if(didx!==-1){await apiPost({action:"delete",sheet:sheet,rowIndex:didx+1});}
+  }finally{
+    syncInProgress=false;
   }
 }
 
@@ -748,7 +773,7 @@ function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  saveLocal();queueSync();
+  saveLocal();syncToSheets();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
@@ -767,7 +792,7 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
     }
   }
   arr[idx].followups=fus;
-  saveLocal();queueSync();
+  saveLocal();syncToSheets();
   toast(undo?"Marked as pending":"Follow-up complete! ✓");
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
@@ -779,7 +804,7 @@ function deleteFollowUp(recId,fuId,rt){
     var idx=getRecordIdx(recId,rt);if(idx===-1)return;
     var arr=rt==="lead"?leads:vendors;
     arr[idx].followups=(arr[idx].followups||[]).filter(function(fu){return fu.id!==fuId;});
-    saveLocal();queueSync();
+    saveLocal();syncToSheets();
     toast("Follow-up removed.");
     refreshProfile(recId,rt);
     renderDash();checkAlerts();
@@ -807,7 +832,7 @@ function renameAtt(attIdx,id,rt){
     var atts2=parseAtts(recArr[idx].attachments);
     if(atts2[attIdx])atts2[attIdx].name=newName;
     recArr[idx].attachments=stringifyAtts(atts2);
-    saveLocal();queueSync();
+    saveLocal();syncToSheets();
     toast("Attachment renamed!");
     refreshProfile(id,rt);
   });
@@ -964,7 +989,7 @@ async function uploadOnFile(file,id,rt){
   var atts=parseAtts(arr[idx].attachments);
   atts.push({name:file.name,url:result.fileUrl,uploaded:true});
   arr[idx].attachments=stringifyAtts(atts);
-  saveLocal();queueSync();
+  saveLocal();syncToSheets();
 }
 
 async function deleteAtt(attIdx,id,rt){
@@ -1116,11 +1141,12 @@ function saveFieldEdit(el,field,id,rt){
   var arr=rt==="lead"?leads:vendors;
   arr[idx][field]=i.value;
   saveLocal();
+  markDirty(id,rt);
   toast("Saved!");
   refreshProfile(id,rt);
   if(rt==="lead"){renderLeads();renderDash();checkAlerts();}
   else{renderVendors();}
-  syncToSheets().catch(function(){setSyncStatus("error");});
+  syncToSheets();
 }
 
 function refreshProfile(id,rt){
@@ -1182,7 +1208,7 @@ function saveNewNote(id,rt){
   var arr=rt==='lead'?leads:vendors;
   var nts=arr[idx].notes||[];
   nts.push({id:gid(),text:txt,ts:new Date().toISOString()});
-  arr[idx].notes=nts;saveLocal();queueSync();
+  arr[idx].notes=nts;saveLocal();syncToSheets();
   toast('Note saved!');refreshProfile(id,rt);
 }
 function openNoteEdit(id,nid,rt){
@@ -1204,7 +1230,7 @@ function saveNoteEdit(id,nid,rt){
   var nts=arr[idx].notes||[];
   var ni=nts.findIndex(function(n){return n.id===nid;});if(ni===-1)return;
   nts[ni].text=txt;nts[ni].ts=new Date().toISOString();
-  arr[idx].notes=nts;saveLocal();queueSync();
+  arr[idx].notes=nts;saveLocal();syncToSheets();
   toast('Note updated!');refreshProfile(id,rt);
 }
 function deleteNote(id,nid,rt){
@@ -1212,7 +1238,7 @@ function deleteNote(id,nid,rt){
     var idx=getRecordIdx(id,rt);if(idx===-1)return;
     var arr=rt==='lead'?leads:vendors;
     arr[idx].notes=(arr[idx].notes||[]).filter(function(n){return n.id!==nid;});
-    saveLocal();queueSync();toast('Note deleted!');refreshProfile(id,rt);
+    saveLocal();syncToSheets();toast('Note deleted!');refreshProfile(id,rt);
   });
 }
 
@@ -1238,9 +1264,10 @@ function saveLead(){
   var lead={id:isEdit?editLid:gid(),da:isEdit?(getRecord(editLid,"lead")||{da:new Date().toISOString()}).da:new Date().toISOString(),name:name,phone:document.getElementById("lp").value.trim(),email:document.getElementById("le").value.trim(),make:document.getElementById("lmk").value.trim(),model:document.getElementById("lmd").value.trim(),year:document.getElementById("lyr").value.trim(),interest:document.getElementById("lin").value.trim(),budget:document.getElementById("lbu").value.trim(),status:document.getElementById("lst").value,followups:quickFus,notes:(function(){var nv=document.getElementById("lno").value.trim();var existing=isEdit?(getRecord(editLid,"lead")||{notes:[]}).notes||[]:[];if(Array.isArray(existing)&&existing.length>0){return existing;}return nv?[{id:gid(),text:nv,ts:new Date().toISOString()}]:[];}()),attachments:origAtts,street:document.getElementById("lstr").value.trim(),city:document.getElementById("lcity").value.trim(),state:document.getElementById("lstate").value.trim(),zip:document.getElementById("lzip").value.trim(),country:document.getElementById("lcountry").value.trim()};
   if(isEdit){var idx=getRecordIdx(editLid,"lead");if(idx>-1)leads[idx]=lead;}else{leads.push(lead);}
   saveLocal();
+  markDirty(lead.id,"lead");
   closeLM();renderLeads();renderDash();checkAlerts();
   toast(isEdit?"Lead updated!":"Lead added!");
-  syncToSheets().then(function(){setSyncStatus("synced");}).catch(function(){setSyncStatus("error");toast("Saved locally. Will retry sync.",true);});
+  syncToSheets();
 }
 
 async function deleteLead(id){
@@ -1248,7 +1275,7 @@ async function deleteLead(id){
   requireDeleteAuth(function(){
     confirmDelete("Delete lead \""+((rec&&rec.name)||"this lead")+"\"? This cannot be undone.",function(){
       var idx=getRecordIdx(id,"lead");if(idx===-1)return;
-      leads.splice(idx,1);saveLocal();queueSync();
+      markDeleted(id,"lead");leads.splice(idx,1);saveLocal();syncToSheets();
       showLeadsList();renderLeads();renderDash();checkAlerts();toast("Lead deleted.");
     });
   });
@@ -1304,9 +1331,10 @@ function saveVendor(){
   var vendor={id:isEdit?editVid:gid(),da:isEdit?(getRecord(editVid,"vendor")||{da:new Date().toISOString()}).da:new Date().toISOString(),brand:brand,cname:document.getElementById("vcn").value.trim(),cphone:document.getElementById("vcp").value.trim(),cemail:document.getElementById("vce").value.trim(),rname:document.getElementById("vrn").value.trim(),rphone:document.getElementById("vrp").value.trim(),cats:document.getElementById("vca").value.trim(),notes:(function(){var nv=document.getElementById("vno").value.trim();var existing=isEdit?(getRecord(editVid,"vendor")||{notes:[]}).notes||[]:[];if(Array.isArray(existing)&&existing.length>0){return existing;}return nv?[{id:gid(),text:nv,ts:new Date().toISOString()}]:[];}()),followups:Array.isArray(origVFus)?origVFus:[],attachments:origAtts,street:document.getElementById("vstr").value.trim(),city:document.getElementById("vcity").value.trim(),state:document.getElementById("vstate").value.trim(),zip:document.getElementById("vzip").value.trim(),country:document.getElementById("vcountry").value.trim()};
   if(isEdit){var idx=getRecordIdx(editVid,"vendor");if(idx>-1)vendors[idx]=vendor;}else{vendors.push(vendor);}
   saveLocal();
+  markDirty(vendor.id,"vendor");
   closeVM();renderVendors();
   toast(isEdit?"Vendor updated!":"Vendor added!");
-  syncToSheets().then(function(){setSyncStatus("synced");}).catch(function(){setSyncStatus("error");toast("Saved locally. Will retry sync.",true);});
+  syncToSheets();
 }
 
 async function deleteVendor(id){
@@ -1314,7 +1342,7 @@ async function deleteVendor(id){
   requireDeleteAuth(function(){
     confirmDelete("Delete vendor \""+((rec&&rec.brand)||"this vendor")+"\"? This cannot be undone.",function(){
       var idx=getRecordIdx(id,"vendor");if(idx===-1)return;
-      vendors.splice(idx,1);saveLocal();queueSync();
+      markDeleted(id,"vendor");vendors.splice(idx,1);saveLocal();syncToSheets();
       showVendorsList();renderVendors();toast("Vendor deleted.");
     });
   });
