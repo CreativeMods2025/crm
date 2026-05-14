@@ -553,11 +553,11 @@ async function syncToSheets(){
 
     pendingChanges=false;
     setSyncStatus("synced");
-    // After pushing, wait a moment then pull to get any changes from other devices
-    // Delay ensures Sheets has finished writing before we read it back
+    // After pushing, wait 4 seconds then pull to get changes from other devices
+    // Delay ensures Sheets has fully written before we read back
     setTimeout(function(){
-      if(!syncInProgress)pullFromSheets();
-    },2000);
+      pullFromSheets();
+    },4000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -566,6 +566,9 @@ async function syncToSheets(){
 }
 
 async function pullFromSheets(){
+  // Never pull if we have unsaved local changes - would overwrite them
+  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
+  if(syncInProgress)return;
   try{
     var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
     function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
