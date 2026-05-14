@@ -153,6 +153,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fu-completed-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#888;padding:6px 0;margin-top:6px;user-select:none}
 .fu-completed-toggle:hover{color:#555}
 .fu-completed-list{margin-top:4px}
+.fu-completed-item{flex-wrap:wrap}
+.fu-resolution-note{width:100%;margin-top:6px;padding:6px 10px;background:#f0f7f0;border-left:3px solid #4caf50;border-radius:4px;font-size:12px;color:#444;line-height:1.5;display:none}
+.fu-resolution-expand{font-size:11px;color:#888;cursor:pointer;text-decoration:underline;flex-shrink:0;margin-left:4px}
+.fu-resolution-expand:hover{color:#555}
+.fu-note-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
+.fu-note-modal.active{display:flex}
+.fu-note-modal-inner{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.fu-note-modal-title{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+.fu-note-modal-sub{font-size:12px;color:#888;margin-bottom:14px}
+.fu-note-modal textarea{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box}
+.fu-note-modal-btns{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
+.fu-note-modal-save{padding:8px 18px;background:#cc2222;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.fu-note-modal-save:hover{background:#aa1111}
+.fu-note-modal-skip{padding:8px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px}
+.fu-note-modal-skip:hover{background:#eee}
 .fu-tag{display:inline-flex;align-items:center;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:#fff;margin-left:8px;flex-shrink:0}
 .fu-tag.green{background:#2e7d32}
 .fu-tag.yellow{background:#f5a800;color:#1a1a1a}
@@ -537,9 +552,12 @@ async function syncToSheets(){
     }
 
     pendingChanges=false;
-    // After pushing, pull fresh data so this device reflects any other changes too
-    await pullFromSheets();
     setSyncStatus("synced");
+    // After pushing, wait a moment then pull to get any changes from other devices
+    // Delay ensures Sheets has finished writing before we read it back
+    setTimeout(function(){
+      if(!syncInProgress)pullFromSheets();
+    },2000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -770,10 +788,22 @@ function buildFollowUpSection(followups,id,recType){
         completedAt=cd.toLocaleDateString()+' at '+cd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
       var dueStr=fu.date?new Date(fu.date).toLocaleDateString():"";
-      html+='<div class="fu-completed-item"><span style="color:#2e7d32;margin-right:6px">&#10003;</span>';
+      var hasNote=fu.resolutionNote&&fu.resolutionNote.trim();
+      html+='<div class="fu-completed-item" id="fci-'+fu.id+'">';
+      html+='<span style="color:#2e7d32;margin-right:6px">&#10003;</span>';
       html+='<div class="fu-completed-label" title="'+esc(fu.label||"Follow-up")+'">'+esc(fu.label||"Follow-up")+(dueStr?'<span style="color:#ccc;margin:0 4px">|</span><span style="font-size:10px;color:#bbb">Due: '+dueStr+'</span>':'')+'</div>';
       html+='<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'No timestamp')+'</span>';
+      html+='<span class="fu-resolution-expand" onclick="toggleResolutionNote(\'fres-'+fu.id+'\')">'+(hasNote?'&#128221; Note':'+ Note')+'</span>';
       html+='<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>';
+      html+='<div class="fu-resolution-note'+(hasNote?' has-note':'')+'" id="fres-'+fu.id+'">';
+      if(hasNote){html+=esc(fu.resolutionNote);}
+      html+='<div style="margin-top:8px;display:flex;gap:8px">';
+      html+='<textarea id="fres-input-'+fu.id+'" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit">'+(hasNote?esc(fu.resolutionNote):'')+'</textarea>';
+      html+='</div>';
+      html+='<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">';
+      html+='<button onclick="saveResolutionNote(\''+id+'\',\''+fu.id+'\',\''+recType+'\')" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>';
+      html+='</div>';
+      html+='</div>';
       html+='</div>';
     });
     html+='</div>';
@@ -794,7 +824,7 @@ function toggleCompletedList(elId,toggle){
   toggle.querySelector("span").textContent=hidden?"▼":"▶";
 }
 
-function addFollowUp(id,rt){
+async function addFollowUp(id,rt){
   rt=rt||"lead";
   var lbl=document.getElementById("fu-label-"+id);
   var dt=document.getElementById("fu-date-"+id);
@@ -804,10 +834,11 @@ function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  markDirty(id,rt);saveLocal();syncToSheets();
+  markDirty(id,rt);saveLocal();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
+  await syncToSheets();
 }
 
 function toggleFollowUpDone(recId,fuId,undo,rt){
@@ -827,6 +858,58 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
   toast(undo?"Marked as pending":"Follow-up complete! ✓");
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
+  // Show resolution note modal when marking done (not when undoing)
+  if(!undo){
+    showResolutionNoteModal(recId,fuId,rt);
+  }
+}
+
+function showResolutionNoteModal(recId,fuId,rt){
+  var modal=document.getElementById("fu-note-modal");
+  var textarea=document.getElementById("fu-note-modal-text");
+  var saveBtn=document.getElementById("fu-note-modal-save");
+  var skipBtn=document.getElementById("fu-note-modal-skip");
+  textarea.value="";
+  modal.classList.add("active");
+  textarea.focus();
+  function closeModal(){modal.classList.remove("active");}
+  saveBtn.onclick=function(){
+    var note=textarea.value.trim();
+    if(note){saveResolutionNote(recId,fuId,rt,note);}
+    closeModal();
+  };
+  skipBtn.onclick=closeModal;
+  modal.onclick=function(e){if(e.target===modal)closeModal();};
+}
+
+function toggleResolutionNote(elId){
+  var el=document.getElementById(elId);
+  if(!el)return;
+  var isVisible=el.style.display==="block";
+  el.style.display=isVisible?"none":"block";
+  if(!isVisible){
+    var ta=el.querySelector("textarea");
+    if(ta)ta.focus();
+  }
+}
+
+function saveResolutionNote(recId,fuId,rt,noteText){
+  rt=rt||"lead";
+  var idx=getRecordIdx(recId,rt);if(idx===-1)return;
+  var arr=rt==="lead"?leads:vendors;
+  var fus=arr[idx].followups||[];
+  // If noteText not passed, read from textarea in DOM
+  if(noteText===undefined){
+    var ta=document.getElementById("fres-input-"+fuId);
+    noteText=ta?ta.value.trim():"";
+  }
+  for(var i=0;i<fus.length;i++){
+    if(fus[i].id===fuId){fus[i].resolutionNote=noteText;break;}
+  }
+  arr[idx].followups=fus;
+  markDirty(recId,rt);saveLocal();syncToSheets();
+  toast("Note saved!");
+  refreshProfile(recId,rt);
 }
 
 function deleteFollowUp(recId,fuId,rt){
@@ -1509,5 +1592,16 @@ setInterval(function(){
   }
 },30000);
 </script>
+<div class="fu-note-modal" id="fu-note-modal">
+  <div class="fu-note-modal-inner">
+    <div class="fu-note-modal-title">Add a resolution note</div>
+    <div class="fu-note-modal-sub">Optional — document what happened or the outcome.</div>
+    <textarea id="fu-note-modal-text" placeholder="e.g. Manufacturer confirmed 2 week ETA..."></textarea>
+    <div class="fu-note-modal-btns">
+      <button class="fu-note-modal-skip" id="fu-note-modal-skip">Skip</button>
+      <button class="fu-note-modal-save" id="fu-note-modal-save">Save &amp; Close</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
