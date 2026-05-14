@@ -487,6 +487,7 @@ function queueSync(){
 // Track which record IDs have changed since last sync
 var dirtyIds={leads:{},vendors:{}};
 var syncInProgress=false;
+var lastPushTime=0;
 
 function markDirty(id,rt){
   if(rt==="lead")dirtyIds.leads[id]=true;
@@ -552,12 +553,13 @@ async function syncToSheets(){
     }
 
     pendingChanges=false;
+    lastPushTime=Date.now();
     setSyncStatus("synced");
-    // After pushing, wait 4 seconds then pull to get changes from other devices
+    // After pushing, wait 6 seconds then pull to get changes from other devices
     // Delay ensures Sheets has fully written before we read back
     setTimeout(function(){
       pullFromSheets();
-    },4000);
+    },6000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -569,6 +571,8 @@ async function pullFromSheets(){
   // Never pull if we have unsaved local changes - would overwrite them
   if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
   if(syncInProgress)return;
+  // Never pull within 8 seconds of a push - Sheets may not have finished writing
+  if(Date.now()-lastPushTime<8000)return;
   try{
     var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
     function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
