@@ -794,7 +794,23 @@ function buildFollowUpSection(followups,id,recType){
       var hasNote=!!(fu.resolutionNote&&fu.resolutionNote.trim());
       var noteText=hasNote?esc(fu.resolutionNote):'';
       var expandLabel=hasNote?'&#128221; Note':'+ Note';
-      // Build completed item using array join to avoid quote escaping issues
+      var history=fu.noteHistory||[];
+      // Build history log HTML
+      var historyHtml='';
+      if(history.length>0){
+        var histId='fhist-'+fu.id;
+        historyHtml+='<div style="margin-bottom:8px">';
+        historyHtml+='<span class="fu-history-toggle" data-histid="'+histId+'" style="font-size:11px;color:#999;cursor:pointer;text-decoration:underline">View edit history ('+history.length+')</span>';
+        historyHtml+='<div id="'+histId+'" style="display:none;margin-top:6px;border-left:2px solid #ddd;padding-left:8px">';
+        history.forEach(function(h){
+          historyHtml+='<div style="font-size:11px;color:#aaa;margin-bottom:4px">';
+          historyHtml+='<span style="color:'+(h.type==='created'?'#4caf50':'#ff9800')+'">&#9679;</span> ';
+          historyHtml+=(h.type==='created'?'Created':'Edited')+' — '+esc(h.ts);
+          historyHtml+='</div>';
+        });
+        historyHtml+='</div></div>';
+      }
+      // Build completed item
       var parts=[
         '<div class="fu-completed-item" id="fci-'+fu.id+'">',
           '<span style="color:#2e7d32;margin-right:6px">&#10003;</span>',
@@ -803,7 +819,7 @@ function buildFollowUpSection(followups,id,recType){
           '<span class="fu-resolution-expand" data-resid="fres-'+fu.id+'">'+expandLabel+'</span>',
           '<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>',
           '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:'+(hasNote?'block':'none')+'">',
-            (hasNote?'<div class="fu-res-text" style="margin-bottom:6px;white-space:pre-wrap">'+noteText+'</div>':''),
+            historyHtml,
             '<textarea class="fu-res-input" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;box-sizing:border-box">'+noteText+'</textarea>',
             '<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">',
               '<button class="fu-res-save" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>',
@@ -907,11 +923,26 @@ function saveResolutionNote(recId,fuId,rt,noteText){
   var fus=arr[idx].followups||[];
   // If noteText not passed, read from textarea in DOM
   if(noteText===undefined){
-    var ta=document.getElementById("fres-input-"+fuId);
+    var el=document.getElementById("fres-"+fuId);
+    var ta=el?el.querySelector("textarea"):null;
     noteText=ta?ta.value.trim():"";
   }
+  if(!noteText){toast("Please enter a note",true);return;}
+  var now=new Date();
+  var ts=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   for(var i=0;i<fus.length;i++){
-    if(fus[i].id===fuId){fus[i].resolutionNote=noteText;break;}
+    if(fus[i].id===fuId){
+      var isNew=!fus[i].resolutionNote;
+      fus[i].resolutionNote=noteText;
+      // Initialize history array if needed
+      fus[i].noteHistory=fus[i].noteHistory||[];
+      if(isNew){
+        fus[i].noteHistory.push({type:'created',ts:ts,text:noteText});
+      } else {
+        fus[i].noteHistory.push({type:'edited',ts:ts,text:noteText});
+      }
+      break;
+    }
   }
   arr[idx].followups=fus;
   markDirty(recId,rt);saveLocal();syncToSheets();
@@ -1060,6 +1091,14 @@ function attachProfileEvents(container,recType,id){
     var visible=el.style.display==="block";
     el.style.display=visible?"none":"block";
     if(!visible){var ta=el.querySelector("textarea");if(ta)ta.focus();}
+  });});
+  container.querySelectorAll(".fu-history-toggle").forEach(function(btn){btn.addEventListener("click",function(){
+    var histId=this.getAttribute("data-histid");
+    var el=document.getElementById(histId);
+    if(!el)return;
+    var visible=el.style.display==="block";
+    el.style.display=visible?"none":"block";
+    this.textContent=visible?this.textContent.replace("Hide","View"):this.textContent.replace("View","Hide");
   });});
   container.querySelectorAll(".fu-res-save").forEach(function(btn){btn.addEventListener("click",function(){
     var fuId=this.getAttribute("data-fuid");
