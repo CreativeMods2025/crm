@@ -782,33 +782,37 @@ function buildFollowUpSection(followups,id,recType){
     html+='<div class="fu-completed-toggle" onclick="toggleCompletedList(\'fcl-'+id+'\',this)"><span>&#9654;</span> Completed ('+completed.length+')</div>';
     html+='<div class="fu-completed-list" id="fcl-'+id+'" style="display:none">';
     completed.forEach(function(fu){
-      var completedAt="";
+      var completedAt='';
       if(fu.completedAt){
         var cd=new Date(fu.completedAt);
         completedAt=cd.toLocaleDateString()+' at '+cd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
-      var dueStr=fu.date?new Date(fu.date).toLocaleDateString():"";
-      var hasNote=fu.resolutionNote&&fu.resolutionNote.trim();
-      html+='<div class="fu-completed-item" id="fci-'+fu.id+'">';
-      html+='<span style="color:#2e7d32;margin-right:6px">&#10003;</span>';
-      html+='<div class="fu-completed-label" title="'+esc(fu.label||"Follow-up")+'">'+esc(fu.label||"Follow-up")+(dueStr?'<span style="color:#ccc;margin:0 4px">|</span><span style="font-size:10px;color:#bbb">Due: '+dueStr+'</span>':'')+'</div>';
-      html+='<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'No timestamp')+'</span>';
-      html+='<span class="fu-resolution-expand" onclick="toggleResolutionNote(\'fres-'+fu.id+'\')">'+(hasNote?'&#128221; Note':'+ Note')+'</span>';
-      html+='<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>';
-      html+='<div class="fu-resolution-note'+(hasNote?' has-note':'')+'" id="fres-'+fu.id+'">';
-      if(hasNote){html+=esc(fu.resolutionNote);}
-      html+='<div style="margin-top:8px;display:flex;gap:8px">';
-      html+='<textarea id="fres-input-'+fu.id+'" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit">'+(hasNote?esc(fu.resolutionNote):'')+'</textarea>';
-      html+='</div>';
-      html+='<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">';
-      html+='<button onclick="saveResolutionNote(\''+id+'\',\''+fu.id+'\',\''+recType+'\')" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>';
-      html+='</div>';
-      html+='</div>';
-      html+='</div>';
+      var dueStr=fu.date?new Date(fu.date).toLocaleDateString():'';
+      var hasNote=!!(fu.resolutionNote&&fu.resolutionNote.trim());
+      var noteText=hasNote?esc(fu.resolutionNote):'';
+      var expandLabel=hasNote?'&#128221; Note':'+ Note';
+      // Build completed item using array join to avoid quote escaping issues
+      var parts=[
+        '<div class="fu-completed-item" id="fci-'+fu.id+'">',
+          '<span style="color:#2e7d32;margin-right:6px">&#10003;</span>',
+          '<div class="fu-completed-label">'+esc(fu.label||'Follow-up')+(dueStr?' <span style="color:#bbb;font-size:10px">| Due: '+dueStr+'</span>':'')+'</div>',
+          '<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'')+'</span>',
+          '<span class="fu-resolution-expand" data-resid="fres-'+fu.id+'">'+expandLabel+'</span>',
+          '<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>',
+          '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:'+(hasNote?'block':'none')+'">',
+            (hasNote?'<div class="fu-res-text" style="margin-bottom:6px;white-space:pre-wrap">'+noteText+'</div>':''),
+            '<textarea class="fu-res-input" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;box-sizing:border-box">'+noteText+'</textarea>',
+            '<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">',
+              '<button class="fu-res-save" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>',
+            '</div>',
+          '</div>',
+        '</div>'
+      ];
+      html+=parts.join('');
     });
     html+='</div>';
   }
-  html+='<div class="add-fu-row">';
+    html+='<div class="add-fu-row">';
   html+='<input type="text" id="fu-label-'+id+'" placeholder="Label (e.g. Follow up on quote)">';
   html+='<input type="datetime-local" id="fu-date-'+id+'">';
   html+='<button class="btn-add-fu" data-addfu="'+id+'" data-rt="'+recType+'">+ Add follow-up</button>';
@@ -1046,6 +1050,22 @@ function attachProfileEvents(container,recType,id){
   container.querySelectorAll("[data-addfu]").forEach(function(btn){btn.addEventListener("click",function(){addFollowUp(this.getAttribute("data-addfu"),this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-done-btn").forEach(function(btn){btn.addEventListener("click",function(){toggleFollowUpDone(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-undo")==="1",this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-del-btn").forEach(function(btn){btn.addEventListener("click",function(){deleteFollowUp(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-rt")||recType);});});
+  container.querySelectorAll(".fu-resolution-expand").forEach(function(btn){btn.addEventListener("click",function(){
+    var resId=this.getAttribute("data-resid");
+    var el=document.getElementById(resId);
+    if(!el)return;
+    var visible=el.style.display==="block";
+    el.style.display=visible?"none":"block";
+    if(!visible){var ta=el.querySelector("textarea");if(ta)ta.focus();}
+  });});
+  container.querySelectorAll(".fu-res-save").forEach(function(btn){btn.addEventListener("click",function(){
+    var fuId=this.getAttribute("data-fuid");
+    var recId=this.getAttribute("data-recid");
+    var rt2=this.getAttribute("data-rt")||recType;
+    var ta=this.closest(".fu-resolution-note").querySelector("textarea");
+    var note=ta?ta.value.trim():"";
+    saveResolutionNote(recId,fuId,rt2,note);
+  });});
   container.querySelectorAll("[data-upload]").forEach(function(btn){btn.addEventListener("click",function(){currentUploadId=this.getAttribute("data-upload");currentUploadType=this.getAttribute("data-rt");document.getElementById("file-input").value="";document.getElementById("file-input").click();});});
   container.querySelectorAll(".att-del").forEach(function(btn){btn.addEventListener("click",function(){deleteAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
   container.querySelectorAll(".att-rename-btn").forEach(function(btn){btn.addEventListener("click",function(){renameAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
