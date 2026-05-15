@@ -822,7 +822,7 @@ function buildFollowUpSection(followups,id,recType){
           '<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'')+'</span>',
           '<span class="fu-resolution-expand" data-resid="fres-'+fu.id+'">'+expandLabel+'</span>',
           '<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>',
-          '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:'+(hasNote?'block':'none')+'">',
+          '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:none">',
             historyHtml,
             '<textarea class="fu-res-input" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;box-sizing:border-box">'+noteText+'</textarea>',
             '<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">',
