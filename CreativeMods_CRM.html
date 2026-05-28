@@ -153,21 +153,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fu-completed-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#888;padding:6px 0;margin-top:6px;user-select:none}
 .fu-completed-toggle:hover{color:#555}
 .fu-completed-list{margin-top:4px}
-.fu-completed-item{flex-wrap:wrap}
-.fu-resolution-note{width:100%;margin-top:6px;padding:6px 10px;background:#f0f7f0;border-left:3px solid #4caf50;border-radius:4px;font-size:12px;color:#444;line-height:1.5;display:none}
-.fu-resolution-expand{font-size:11px;color:#888;cursor:pointer;text-decoration:underline;flex-shrink:0;margin-left:4px}
-.fu-resolution-expand:hover{color:#555}
-.fu-note-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
-.fu-note-modal.active{display:flex}
-.fu-note-modal-inner{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
-.fu-note-modal-title{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
-.fu-note-modal-sub{font-size:12px;color:#888;margin-bottom:14px}
-.fu-note-modal textarea{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box}
-.fu-note-modal-btns{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
-.fu-note-modal-save{padding:8px 18px;background:#cc2222;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
-.fu-note-modal-save:hover{background:#aa1111}
-.fu-note-modal-skip{padding:8px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px}
-.fu-note-modal-skip:hover{background:#eee}
 .fu-tag{display:inline-flex;align-items:center;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.5px;color:#fff;margin-left:8px;flex-shrink:0}
 .fu-tag.green{background:#2e7d32}
 .fu-tag.yellow{background:#f5a800;color:#1a1a1a}
@@ -203,6 +188,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dg{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .dt{font-size:14px;font-weight:600;margin-bottom:12px;color:#1a1a1a}
 .mc{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 16px;margin-bottom:8px;cursor:pointer;transition:all 0.15s}
+#due-list{max-height:340px;overflow-y:auto;padding-right:2px}
+#due-list::-webkit-scrollbar{width:4px}
+#due-list::-webkit-scrollbar-track{background:#f5f5f5;border-radius:4px}
+#due-list::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}
+#due-list::-webkit-scrollbar-thumb:hover{background:#bbb}
 .mc:hover{border-color:#cc2222;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
 .mct{font-size:13px;font-weight:600;color:#1a1a1a}
 .mcs{font-size:12px;color:#888;margin-top:2px}
@@ -222,8 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .topbar{padding:8px 12px;gap:8px;flex-wrap:nowrap}
   .topbar img{height:36px!important}
   .top-search{max-width:none;flex:1}
-  .sync-indicator{display:flex;font-size:10px}
-  #sync-label{display:none}
+  .sync-indicator{display:none}
   .main{padding:12px}
   .stats{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
   .sc{padding:12px}
@@ -487,7 +476,6 @@ function queueSync(){
 // Track which record IDs have changed since last sync
 var dirtyIds={leads:{},vendors:{}};
 var syncInProgress=false;
-var lastPushTime=0;
 
 function markDirty(id,rt){
   if(rt==="lead")dirtyIds.leads[id]=true;
@@ -500,15 +488,11 @@ function markDeleted(id,rt){
 }
 
 async function syncToSheets(){
-  if(syncInProgress)return;
-  // SAFETY RULE: never push to Sheets if nothing was changed locally - prevents wiping data
-  var hasDirtyLeads=Object.keys(dirtyIds.leads).length>0;
-  var hasDirtyVendors=Object.keys(dirtyIds.vendors).length>0;
-  if(!hasDirtyLeads && !hasDirtyVendors){setSyncStatus("synced");return;}
+  if(syncInProgress)return; // Prevent overlapping syncs
   syncInProgress=true;
   setSyncStatus("syncing");
   try{
-    // Get current row index map from Sheets so we know update vs add
+    // Get current row index map from Sheets (just IDs, fast)
     var leadRows=await apiGet("Leads");
     var vendorRows=await apiGet("Vendors");
     var leadIdxMap={};
@@ -516,7 +500,7 @@ async function syncToSheets(){
     leadRows.forEach(function(r,i){leadIdxMap[r[0]]=i+1;});
     vendorRows.forEach(function(r,i){vendorIdxMap[r[0]]=i+1;});
 
-    // Only push dirty leads
+    // Only sync dirty leads
     var dirtyLeadIds=Object.keys(dirtyIds.leads);
     for(var i=0;i<dirtyLeadIds.length;i++){
       var id=dirtyLeadIds[i];
@@ -534,7 +518,7 @@ async function syncToSheets(){
       delete dirtyIds.leads[id];
     }
 
-    // Only push dirty vendors
+    // Only sync dirty vendors
     var dirtyVendorIds=Object.keys(dirtyIds.vendors);
     for(var j=0;j<dirtyVendorIds.length;j++){
       var vid=dirtyVendorIds[j];
@@ -552,14 +536,8 @@ async function syncToSheets(){
       delete dirtyIds.vendors[vid];
     }
 
-    pendingChanges=false;
-    lastPushTime=Date.now();
+    pendingChanges=Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0;
     setSyncStatus("synced");
-    // After pushing, wait 6 seconds then pull to get changes from other devices
-    // Delay ensures Sheets has fully written before we read back
-    setTimeout(function(){
-      pullFromSheets();
-    },6000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -567,38 +545,9 @@ async function syncToSheets(){
   }
 }
 
-async function pullFromSheets(){
-  // Never pull if we have unsaved local changes - would overwrite them
-  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
-  if(syncInProgress)return;
-  // Never pull within 8 seconds of a push - Sheets may not have finished writing
-  if(Date.now()-lastPushTime<8000)return;
-  try{
-    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
-    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
-    var sheetsLeads=dedupe(results[0].map(r2l));
-    var sheetsVendors=dedupe(results[1].map(r2v));
-    if(sheetsLeads.length>0){leads=sheetsLeads;}
-    if(sheetsVendors.length>0){vendors=sheetsVendors;}
-    dirtyIds={leads:{},vendors:{}};
-    pendingChanges=false;
-    saveLocal();
-    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
-  }catch(e){}
-}
-
-// Auto-poll every 30 seconds so the OTHER device gets updates without pressing anything
-setInterval(async function(){
-  if(syncInProgress)return;
-  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
-  await pullFromSheets();
-},30000);
-
 async function apiGet(sheet){
   try{
-    // Cache-bust with timestamp so Google never returns a stale cached response
-    var url=API+"?action=getAll&sheet="+sheet+"&_="+Date.now();
-    var r=await fetch(url,{method:"GET",mode:"cors",cache:"no-store"});
+    var r=await fetch(API+"?action=getAll&sheet="+sheet,{method:"GET",mode:"cors"});
     var d=await r.json();
     return d.slice(1).filter(function(row){return row[0];});
   }catch(e){return[];}
@@ -789,53 +738,21 @@ function buildFollowUpSection(followups,id,recType){
     html+='<div class="fu-completed-toggle" onclick="toggleCompletedList(\'fcl-'+id+'\',this)"><span>&#9654;</span> Completed ('+completed.length+')</div>';
     html+='<div class="fu-completed-list" id="fcl-'+id+'" style="display:none">';
     completed.forEach(function(fu){
-      var completedAt='';
+      var completedAt="";
       if(fu.completedAt){
         var cd=new Date(fu.completedAt);
         completedAt=cd.toLocaleDateString()+' at '+cd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
-      var dueStr=fu.date?new Date(fu.date).toLocaleDateString():'';
-      var hasNote=!!(fu.resolutionNote&&fu.resolutionNote.trim());
-      var noteText=hasNote?esc(fu.resolutionNote):'';
-      var expandLabel=hasNote?'&#128221; Note':'+ Note';
-      var history=fu.noteHistory||[];
-      // Build history log HTML
-      var historyHtml='';
-      if(history.length>0){
-        var histId='fhist-'+fu.id;
-        historyHtml+='<div style="margin-bottom:8px">';
-        historyHtml+='<span class="fu-history-toggle" data-histid="'+histId+'" style="font-size:11px;color:#999;cursor:pointer;text-decoration:underline">View edit history ('+history.length+')</span>';
-        historyHtml+='<div id="'+histId+'" style="display:none;margin-top:6px;border-left:2px solid #ddd;padding-left:8px">';
-        history.forEach(function(h){
-          historyHtml+='<div style="font-size:11px;color:#aaa;margin-bottom:4px">';
-          historyHtml+='<span style="color:'+(h.type==='created'?'#4caf50':'#ff9800')+'">&#9679;</span> ';
-          historyHtml+=(h.type==='created'?'Created':'Edited')+' — '+esc(h.ts);
-          historyHtml+='</div>';
-        });
-        historyHtml+='</div></div>';
-      }
-      // Build completed item
-      var parts=[
-        '<div class="fu-completed-item" id="fci-'+fu.id+'">',
-          '<span style="color:#2e7d32;margin-right:6px">&#10003;</span>',
-          '<div class="fu-completed-label">'+esc(fu.label||'Follow-up')+(dueStr?' <span style="color:#bbb;font-size:10px">| Due: '+dueStr+'</span>':'')+'</div>',
-          '<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'')+'</span>',
-          '<span class="fu-resolution-expand" data-resid="fres-'+fu.id+'">'+expandLabel+'</span>',
-          '<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>',
-          '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:none">',
-            historyHtml,
-            '<textarea class="fu-res-input" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;box-sizing:border-box">'+noteText+'</textarea>',
-            '<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">',
-              '<button class="fu-res-save" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>',
-            '</div>',
-          '</div>',
-        '</div>'
-      ];
-      html+=parts.join('');
+      var dueStr=fu.date?new Date(fu.date).toLocaleDateString():"";
+      html+='<div class="fu-completed-item"><span style="color:#2e7d32;margin-right:6px">&#10003;</span>';
+      html+='<div class="fu-completed-label" title="'+esc(fu.label||"Follow-up")+'">'+esc(fu.label||"Follow-up")+(dueStr?'<span style="color:#ccc;margin:0 4px">|</span><span style="font-size:10px;color:#bbb">Due: '+dueStr+'</span>':'')+'</div>';
+      html+='<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'No timestamp')+'</span>';
+      html+='<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>';
+      html+='</div>';
     });
     html+='</div>';
   }
-    html+='<div class="add-fu-row">';
+  html+='<div class="add-fu-row">';
   html+='<input type="text" id="fu-label-'+id+'" placeholder="Label (e.g. Follow up on quote)">';
   html+='<input type="datetime-local" id="fu-date-'+id+'">';
   html+='<button class="btn-add-fu" data-addfu="'+id+'" data-rt="'+recType+'">+ Add follow-up</button>';
@@ -851,7 +768,7 @@ function toggleCompletedList(elId,toggle){
   toggle.querySelector("span").textContent=hidden?"▼":"▶";
 }
 
-async function addFollowUp(id,rt){
+function addFollowUp(id,rt){
   rt=rt||"lead";
   var lbl=document.getElementById("fu-label-"+id);
   var dt=document.getElementById("fu-date-"+id);
@@ -861,11 +778,10 @@ async function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  markDirty(id,rt);saveLocal();
+  saveLocal();syncToSheets();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
-  await syncToSheets();
 }
 
 function toggleFollowUpDone(recId,fuId,undo,rt){
@@ -881,77 +797,10 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
     }
   }
   arr[idx].followups=fus;
-  markDirty(recId,rt);saveLocal();syncToSheets();
+  saveLocal();syncToSheets();
   toast(undo?"Marked as pending":"Follow-up complete! ✓");
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
-  // Show resolution note modal when marking done (not when undoing)
-  if(!undo){
-    showResolutionNoteModal(recId,fuId,rt);
-  }
-}
-
-function showResolutionNoteModal(recId,fuId,rt){
-  var modal=document.getElementById("fu-note-modal");
-  var textarea=document.getElementById("fu-note-modal-text");
-  var saveBtn=document.getElementById("fu-note-modal-save");
-  var skipBtn=document.getElementById("fu-note-modal-skip");
-  textarea.value="";
-  modal.classList.add("active");
-  textarea.focus();
-  function closeModal(){modal.classList.remove("active");}
-  saveBtn.onclick=function(){
-    var note=textarea.value.trim();
-    if(note){saveResolutionNote(recId,fuId,rt,note);}
-    closeModal();
-  };
-  skipBtn.onclick=closeModal;
-  modal.onclick=function(e){if(e.target===modal)closeModal();};
-}
-
-function toggleResolutionNote(elId){
-  var el=document.getElementById(elId);
-  if(!el)return;
-  var isVisible=el.style.display==="block";
-  el.style.display=isVisible?"none":"block";
-  if(!isVisible){
-    var ta=el.querySelector("textarea");
-    if(ta)ta.focus();
-  }
-}
-
-function saveResolutionNote(recId,fuId,rt,noteText){
-  rt=rt||"lead";
-  var idx=getRecordIdx(recId,rt);if(idx===-1)return;
-  var arr=rt==="lead"?leads:vendors;
-  var fus=arr[idx].followups||[];
-  // If noteText not passed, read from textarea in DOM
-  if(noteText===undefined){
-    var el=document.getElementById("fres-"+fuId);
-    var ta=el?el.querySelector("textarea"):null;
-    noteText=ta?ta.value.trim():"";
-  }
-  if(!noteText){toast("Please enter a note",true);return;}
-  var now=new Date();
-  var ts=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-  for(var i=0;i<fus.length;i++){
-    if(fus[i].id===fuId){
-      var isNew=!fus[i].resolutionNote;
-      fus[i].resolutionNote=noteText;
-      // Initialize history array if needed
-      fus[i].noteHistory=fus[i].noteHistory||[];
-      if(isNew){
-        fus[i].noteHistory.push({type:'created',ts:ts,text:noteText});
-      } else {
-        fus[i].noteHistory.push({type:'edited',ts:ts,text:noteText});
-      }
-      break;
-    }
-  }
-  arr[idx].followups=fus;
-  markDirty(recId,rt);saveLocal();syncToSheets();
-  toast("Note saved!");
-  refreshProfile(recId,rt);
 }
 
 function deleteFollowUp(recId,fuId,rt){
@@ -960,7 +809,7 @@ function deleteFollowUp(recId,fuId,rt){
     var idx=getRecordIdx(recId,rt);if(idx===-1)return;
     var arr=rt==="lead"?leads:vendors;
     arr[idx].followups=(arr[idx].followups||[]).filter(function(fu){return fu.id!==fuId;});
-    markDirty(recId,rt);saveLocal();syncToSheets();
+    saveLocal();syncToSheets();
     toast("Follow-up removed.");
     refreshProfile(recId,rt);
     renderDash();checkAlerts();
@@ -988,7 +837,7 @@ function renameAtt(attIdx,id,rt){
     var atts2=parseAtts(recArr[idx].attachments);
     if(atts2[attIdx])atts2[attIdx].name=newName;
     recArr[idx].attachments=stringifyAtts(atts2);
-    markDirty(id,rt);saveLocal();syncToSheets();
+    saveLocal();syncToSheets();
     toast("Attachment renamed!");
     refreshProfile(id,rt);
   });
@@ -1088,30 +937,6 @@ function attachProfileEvents(container,recType,id){
   container.querySelectorAll("[data-addfu]").forEach(function(btn){btn.addEventListener("click",function(){addFollowUp(this.getAttribute("data-addfu"),this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-done-btn").forEach(function(btn){btn.addEventListener("click",function(){toggleFollowUpDone(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-undo")==="1",this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-del-btn").forEach(function(btn){btn.addEventListener("click",function(){deleteFollowUp(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-rt")||recType);});});
-  container.querySelectorAll(".fu-resolution-expand").forEach(function(btn){btn.addEventListener("click",function(){
-    var resId=this.getAttribute("data-resid");
-    var el=document.getElementById(resId);
-    if(!el)return;
-    var visible=el.style.display==="block";
-    el.style.display=visible?"none":"block";
-    if(!visible){var ta=el.querySelector("textarea");if(ta)ta.focus();}
-  });});
-  container.querySelectorAll(".fu-history-toggle").forEach(function(btn){btn.addEventListener("click",function(){
-    var histId=this.getAttribute("data-histid");
-    var el=document.getElementById(histId);
-    if(!el)return;
-    var visible=el.style.display==="block";
-    el.style.display=visible?"none":"block";
-    this.textContent=visible?this.textContent.replace("Hide","View"):this.textContent.replace("View","Hide");
-  });});
-  container.querySelectorAll(".fu-res-save").forEach(function(btn){btn.addEventListener("click",function(){
-    var fuId=this.getAttribute("data-fuid");
-    var recId=this.getAttribute("data-recid");
-    var rt2=this.getAttribute("data-rt")||recType;
-    var ta=this.closest(".fu-resolution-note").querySelector("textarea");
-    var note=ta?ta.value.trim():"";
-    saveResolutionNote(recId,fuId,rt2,note);
-  });});
   container.querySelectorAll("[data-upload]").forEach(function(btn){btn.addEventListener("click",function(){currentUploadId=this.getAttribute("data-upload");currentUploadType=this.getAttribute("data-rt");document.getElementById("file-input").value="";document.getElementById("file-input").click();});});
   container.querySelectorAll(".att-del").forEach(function(btn){btn.addEventListener("click",function(){deleteAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
   container.querySelectorAll(".att-rename-btn").forEach(function(btn){btn.addEventListener("click",function(){renameAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
@@ -1169,7 +994,7 @@ async function uploadOnFile(file,id,rt){
   var atts=parseAtts(arr[idx].attachments);
   atts.push({name:file.name,url:result.fileUrl,uploaded:true});
   arr[idx].attachments=stringifyAtts(atts);
-  markDirty(id,rt);saveLocal();syncToSheets();
+  saveLocal();syncToSheets();
 }
 
 async function deleteAtt(attIdx,id,rt){
@@ -1180,7 +1005,7 @@ async function deleteAtt(attIdx,id,rt){
   var atts=parseAtts(arr[idx].attachments);
   atts.splice(attIdx,1);
   arr[idx].attachments=stringifyAtts(atts);
-  markDirty(id,rt);saveLocal();
+  saveLocal();
   toast("Attachment removed. Syncing...");
   refreshProfile(id,rt);
   try{await syncToSheets();toast("Attachment removed and synced!");}catch(e){}
@@ -1388,7 +1213,7 @@ function saveNewNote(id,rt){
   var arr=rt==='lead'?leads:vendors;
   var nts=arr[idx].notes||[];
   nts.push({id:gid(),text:txt,ts:new Date().toISOString()});
-  arr[idx].notes=nts;markDirty(id,rt);saveLocal();syncToSheets();
+  arr[idx].notes=nts;saveLocal();syncToSheets();
   toast('Note saved!');refreshProfile(id,rt);
 }
 function openNoteEdit(id,nid,rt){
@@ -1410,7 +1235,7 @@ function saveNoteEdit(id,nid,rt){
   var nts=arr[idx].notes||[];
   var ni=nts.findIndex(function(n){return n.id===nid;});if(ni===-1)return;
   nts[ni].text=txt;nts[ni].ts=new Date().toISOString();
-  arr[idx].notes=nts;markDirty(id,rt);saveLocal();syncToSheets();
+  arr[idx].notes=nts;saveLocal();syncToSheets();
   toast('Note updated!');refreshProfile(id,rt);
 }
 function deleteNote(id,nid,rt){
@@ -1418,7 +1243,7 @@ function deleteNote(id,nid,rt){
     var idx=getRecordIdx(id,rt);if(idx===-1)return;
     var arr=rt==='lead'?leads:vendors;
     arr[idx].notes=(arr[idx].notes||[]).filter(function(n){return n.id!==nid;});
-    markDirty(id,rt);saveLocal();syncToSheets();toast('Note deleted!');refreshProfile(id,rt);
+    saveLocal();syncToSheets();toast('Note deleted!');refreshProfile(id,rt);
   });
 }
 
@@ -1551,43 +1376,73 @@ function cleanFollowUps(){
 }
 
 async function loadAll(){
-  // Step 1: Show whatever is in local storage immediately while we fetch Sheets
-  loadLocal();
+  // Step 1: Always load local storage first - it is ALWAYS the source of truth
+  var hasLocal=loadLocal();
   cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
   var loadEl=document.getElementById("dash-loading");
   if(loadEl)loadEl.style.display="block";
   setSyncStatus("syncing");
 
-  // Step 2: Pull from Sheets - Sheets is ALWAYS the master copy on startup
-  // NEVER push on startup - only pull. Pushing only happens when user makes a change.
+  // Step 2: Try to get anything from Sheets that we don't have locally
   try{
     var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
     function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
     var sheetsLeads=dedupe(results[0].map(r2l));
     var sheetsVendors=dedupe(results[1].map(r2v));
 
-    // Sheets wins for everything on startup - replace local with Sheets data
-    // This ensures opening on any device always shows the latest data
-    if(sheetsLeads.length>0){
-      leads=sheetsLeads;
-    }
-    if(sheetsVendors.length>0){
-      vendors=sheetsVendors;
+    // SAFE merge: Sheets is the source of truth on startup.
+    // For existing records: use Sheets version of all fields, but also
+    // fold in any notes/followups that only exist locally (dirty local additions).
+    function safeMerge(local,remote){
+      var localMap={};
+      local.forEach(function(r){localMap[r.id]=r;});
+      var remoteMap={};
+      remote.forEach(function(r){remoteMap[r.id]=r;});
+      var mergedArr=[];
+      var changed=0;
+      remote.forEach(function(r){
+        var loc=localMap[r.id];
+        if(!loc){
+          mergedArr.push(r);changed++;
+        } else {
+          // Sheets wins for all scalar fields; preserve local-only notes/followups
+          var sheetsNoteIds={};
+          (r.notes||[]).forEach(function(n){sheetsNoteIds[n.id]=true;});
+          var extraNotes=[];
+          (loc.notes||[]).forEach(function(n){if(!sheetsNoteIds[n.id]){extraNotes.push(n);changed++;}});
+          var sheetsFuIds={};
+          (r.followups||[]).forEach(function(fu){sheetsFuIds[fu.id]=true;});
+          var extraFus=[];
+          (loc.followups||[]).forEach(function(fu){if(!sheetsFuIds[fu.id]){extraFus.push(fu);changed++;}});
+          var merged_rec=JSON.parse(JSON.stringify(r));
+          if(extraNotes.length>0){merged_rec.notes=(r.notes||[]).concat(extraNotes);}
+          if(extraFus.length>0){merged_rec.followups=(r.followups||[]).concat(extraFus);}
+          if(JSON.stringify(loc)!==JSON.stringify(merged_rec))changed++;
+          mergedArr.push(merged_rec);
+        }
+      });
+      local.forEach(function(l){if(!remoteMap[l.id]){mergedArr.push(l);changed++;}});
+      local.length=0;
+      mergedArr.forEach(function(r){local.push(r);});
+      return changed;
     }
 
-    // Clear dirty flags - we just loaded fresh from Sheets, nothing to push
-    dirtyIds={leads:{},vendors:{}};
-    pendingChanges=false;
+    var addedLeads=safeMerge(leads,sheetsLeads);
+    var addedVendors=safeMerge(vendors,sheetsVendors);
 
-    saveLocal();
-    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+    if(addedLeads>0||addedVendors>0){
+      cleanFollowUps();saveLocal();renderDash();checkAlerts();renderLeads();renderVendors();
+    }
     setSyncStatus("synced");
     if(loadEl)loadEl.style.display="none";
+
+    // Step 3: Push local data up to Sheets to make sure everything is there
+    syncToSheets().catch(function(){});
 
   }catch(e){
     setSyncStatus("error");
     if(loadEl)loadEl.style.display="none";
-    toast("Could not connect to Google Sheets. Showing local data.",true);
+    if(!hasLocal){toast("Could not load data. Check connection.",true);}
   }
 }
 
@@ -1599,15 +1454,80 @@ document.getElementById("dash-sync-btn").addEventListener("click",async function
   toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    await syncToSheets(); // push dirty changes first
-    await pullFromSheets(); // then pull latest from all devices
-    setSyncStatus("synced");
+    await fullTwoWaySync();
     toast("Sync complete! Data is up to date.");
   }catch(e){
     setSyncStatus("error");
-    toast("Sync failed - check your connection.",true);
+    toast("Sync failed - your data is still saved locally.",true);
   }
 });
+
+async function fullTwoWaySync(){
+  // STEP 1: Pull latest data from Google Sheets
+  var leadRows=await apiGet("Leads");
+  var vendorRows=await apiGet("Vendors");
+
+  if(leadRows.length>0 || vendorRows.length>0){
+    // Convert Sheets rows to objects
+    var sheetsLeads=leadRows.map(function(r){return r2l(r);});
+    var sheetsVendors=vendorRows.map(function(r){return r2v(r);});
+
+    // Build lookup maps by ID
+    var sheetsLeadMap={};
+    sheetsLeads.forEach(function(l){sheetsLeadMap[l.id]=l;});
+    var sheetsVendorMap={};
+    sheetsVendors.forEach(function(v){sheetsVendorMap[v.id]=v;});
+
+    var localLeadMap={};
+    leads.forEach(function(l){localLeadMap[l.id]=l;});
+    var localVendorMap={};
+    vendors.forEach(function(v){localVendorMap[v.id]=v;});
+
+    // Merge: Sheets wins for any record not marked dirty locally
+    var mergedLeads=[];
+    // Add all Sheets leads, using local version only if dirty
+    sheetsLeads.forEach(function(sl){
+      if(dirtyIds.leads[sl.id] && dirtyIds.leads[sl.id]!=="delete" && localLeadMap[sl.id]){
+        mergedLeads.push(localLeadMap[sl.id]); // keep local dirty version
+      } else if(dirtyIds.leads[sl.id]==="delete"){
+        // skip - marked for deletion locally
+      } else {
+        mergedLeads.push(sl); // use Sheets version
+      }
+    });
+    // Add local-only leads (not yet in Sheets)
+    leads.forEach(function(ll){
+      if(!sheetsLeadMap[ll.id] && dirtyIds.leads[ll.id]!=="delete"){
+        mergedLeads.push(ll);
+      }
+    });
+
+    var mergedVendors=[];
+    sheetsVendors.forEach(function(sv){
+      if(dirtyIds.vendors[sv.id] && dirtyIds.vendors[sv.id]!=="delete" && localVendorMap[sv.id]){
+        mergedVendors.push(localVendorMap[sv.id]);
+      } else if(dirtyIds.vendors[sv.id]==="delete"){
+        // skip
+      } else {
+        mergedVendors.push(sv);
+      }
+    });
+    vendors.forEach(function(lv){
+      if(!sheetsVendorMap[lv.id] && dirtyIds.vendors[lv.id]!=="delete"){
+        mergedVendors.push(lv);
+      }
+    });
+
+    leads=mergedLeads;
+    vendors=mergedVendors;
+    saveLocal();
+    renderLeads();
+    renderVendors();
+  }
+
+  // STEP 2: Push any remaining dirty local changes up to Sheets
+  await syncToSheets();
+}
 document.getElementById("add-lead-btn").addEventListener("click",function(){openLF();});
 document.getElementById("add-vendor-btn").addEventListener("click",function(){openVF();});
 document.getElementById("lcancel").addEventListener("click",function(){closeLM();});
@@ -1658,16 +1578,5 @@ setInterval(function(){
   }
 },30000);
 </script>
-<div class="fu-note-modal" id="fu-note-modal">
-  <div class="fu-note-modal-inner">
-    <div class="fu-note-modal-title">Add a resolution note</div>
-    <div class="fu-note-modal-sub">Optional — document what happened or the outcome.</div>
-    <textarea id="fu-note-modal-text" placeholder="e.g. Manufacturer confirmed 2 week ETA..."></textarea>
-    <div class="fu-note-modal-btns">
-      <button class="fu-note-modal-skip" id="fu-note-modal-skip">Skip</button>
-      <button class="fu-note-modal-save" id="fu-note-modal-save">Save &amp; Close</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>
