@@ -1150,6 +1150,10 @@ function saveFieldEdit(el,field,id,rt){
   var idx=getRecordIdx(id,rt);if(idx===-1)return;
   var arr=rt==="lead"?leads:vendors;
   arr[idx][field]=i.value;
+  // If customerType changed to retail, clear company so it doesn't show on dashboard
+  if(field==="customerType" && i.value==="retail"){
+    arr[idx].company="";
+  }
   saveLocal();
   markDirty(id,rt);
   toast("Saved!");
