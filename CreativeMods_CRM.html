@@ -72,6 +72,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .vlist-header span{font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:500}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
 .ct-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;background:#e8e8e8;color:#555}
+.fu-note-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
+.fu-note-modal.active{display:flex}
+.fu-note-modal-inner{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.fu-note-modal-title{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+.fu-note-modal-sub{font-size:12px;color:#888;margin-bottom:14px}
+.fu-note-modal textarea{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box}
+.fu-note-modal-btns{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
+.fu-note-modal-save{padding:8px 18px;background:#cc2222;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.fu-note-modal-save:hover{background:#aa1111}
+.fu-note-modal-skip{padding:8px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px}
+.fu-note-modal-skip:hover{background:#eee}
 .bn{background:#e3f2fd;color:#1565c0}
 .bc{background:#fff8e1;color:#e65100}
 .bi{background:#e8f5e9;color:#2e7d32}
@@ -148,7 +159,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fu-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;margin-bottom:8px;gap:8px}
 .fu-item-info{flex:1;min-width:0}
 .fu-label{font-size:13px;font-weight:500;color:#1a1a1a}
-.fu-completed-item{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:4px;gap:8px;font-size:12px;color:#888}
+.fu-completed-item{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;padding:7px 12px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:4px;gap:8px;font-size:12px;color:#888}
+.fu-resolution-note{width:100%;margin-top:6px;padding:8px 10px;background:#f0f7f0;border-left:3px solid #4caf50;border-radius:4px;font-size:12px;color:#444;line-height:1.5}
+.fu-resolution-expand{font-size:11px;color:#888;cursor:pointer;text-decoration:underline;flex-shrink:0;margin-left:4px}
+.fu-resolution-expand:hover{color:#555}
 .fu-completed-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .fu-completed-meta{font-size:11px;color:#2e7d32;flex-shrink:0;white-space:nowrap}
 .fu-completed-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#888;padding:6px 0;margin-top:6px;user-select:none}
@@ -748,11 +762,42 @@ function buildFollowUpSection(followups,id,recType){
         completedAt=cd.toLocaleDateString()+' at '+cd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
       var dueStr=fu.date?new Date(fu.date).toLocaleDateString():"";
-      html+='<div class="fu-completed-item"><span style="color:#2e7d32;margin-right:6px">&#10003;</span>';
-      html+='<div class="fu-completed-label" title="'+esc(fu.label||"Follow-up")+'">'+esc(fu.label||"Follow-up")+(dueStr?'<span style="color:#ccc;margin:0 4px">|</span><span style="font-size:10px;color:#bbb">Due: '+dueStr+'</span>':'')+'</div>';
-      html+='<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'No timestamp')+'</span>';
-      html+='<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>';
-      html+='</div>';
+      var hasNote=!!(fu.resolutionNote&&fu.resolutionNote.trim());
+      var noteText=hasNote?esc(fu.resolutionNote):'';
+      var expandLabel=hasNote?'&#128221; Note':'+ Note';
+      var history=fu.noteHistory||[];
+      // Build history log
+      var historyHtml='';
+      if(history.length>0){
+        var histId='fhist-'+fu.id;
+        historyHtml+='<div style="margin-bottom:8px">';
+        historyHtml+='<span class="fu-history-toggle" data-histid="'+histId+'" style="font-size:11px;color:#999;cursor:pointer;text-decoration:underline">View edit history ('+history.length+')</span>';
+        historyHtml+='<div id="'+histId+'" style="display:none;margin-top:6px;border-left:2px solid #ddd;padding-left:8px">';
+        history.forEach(function(h){
+          historyHtml+='<div style="font-size:11px;color:#aaa;margin-bottom:4px">';
+          historyHtml+='<span style="color:'+(h.type==='created'?'#4caf50':'#ff9800')+'">&#9679;</span> ';
+          historyHtml+=(h.type==='created'?'Created':'Edited')+' — '+esc(h.ts);
+          historyHtml+='</div>';
+        });
+        historyHtml+='</div></div>';
+      }
+      var parts=[
+        '<div class="fu-completed-item" id="fci-'+fu.id+'">',
+          '<span style="color:#2e7d32;margin-right:6px">&#10003;</span>',
+          '<div class="fu-completed-label">'+esc(fu.label||'Follow-up')+(dueStr?' <span style="color:#bbb;font-size:10px">| Due: '+dueStr+'</span>':'')+'</div>',
+          '<span class="fu-completed-meta">'+(completedAt?'&#10003; '+completedAt:'')+'</span>',
+          '<span class="fu-resolution-expand" data-resid="fres-'+fu.id+'">'+expandLabel+'</span>',
+          '<button class="fu-del-btn" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="margin-left:6px">&#128465;</button>',
+          '<div class="fu-resolution-note" id="fres-'+fu.id+'" style="display:none">',
+            historyHtml,
+            '<textarea class="fu-res-input" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:6px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;box-sizing:border-box">'+noteText+'</textarea>',
+            '<div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">',
+              '<button class="fu-res-save" data-fuid="'+fu.id+'" data-recid="'+id+'" data-rt="'+recType+'" style="padding:5px 12px;background:#cc2222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Save note</button>',
+            '</div>',
+          '</div>',
+        '</div>'
+      ];
+      html+=parts.join('');
     });
     html+='</div>';
   }
@@ -806,6 +851,62 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
   if(!undo){showResolutionNoteModal(recId,fuId,rt);}
+}
+
+function showResolutionNoteModal(recId,fuId,rt){
+  var modal=document.getElementById("fu-note-modal");
+  var textarea=document.getElementById("fu-note-modal-text");
+  if(!modal||!textarea){return;}
+  textarea.value="";
+  modal.classList.add("active");
+  setTimeout(function(){textarea.focus();},100);
+  function closeModal(){modal.classList.remove("active");}
+  var newSave=document.getElementById("fu-note-modal-save").cloneNode(true);
+  var newSkip=document.getElementById("fu-note-modal-skip").cloneNode(true);
+  document.getElementById("fu-note-modal-save").parentNode.replaceChild(newSave,document.getElementById("fu-note-modal-save"));
+  document.getElementById("fu-note-modal-skip").parentNode.replaceChild(newSkip,document.getElementById("fu-note-modal-skip"));
+  newSave.addEventListener("click",function(){
+    var note=textarea.value.trim();
+    if(note){saveResolutionNote(recId,fuId,rt,note);}
+    closeModal();
+  });
+  newSkip.addEventListener("click",closeModal);
+  modal.onclick=function(e){if(e.target===modal)closeModal();};
+}
+
+function toggleResolutionNote(resId){
+  var el=document.getElementById(resId);
+  if(!el)return;
+  el.style.display=el.style.display==="block"?"none":"block";
+  if(el.style.display==="block"){var ta=el.querySelector("textarea");if(ta)ta.focus();}
+}
+
+function saveResolutionNote(recId,fuId,rt,noteText){
+  rt=rt||"lead";
+  var idx=getRecordIdx(recId,rt);if(idx===-1)return;
+  var arr=rt==="lead"?leads:vendors;
+  var fus=arr[idx].followups||[];
+  if(noteText===undefined){
+    var el=document.getElementById("fres-"+fuId);
+    var ta=el?el.querySelector("textarea"):null;
+    noteText=ta?ta.value.trim():"";
+  }
+  if(!noteText){toast("Please enter a note",true);return;}
+  var now=new Date();
+  var ts=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  for(var i=0;i<fus.length;i++){
+    if(fus[i].id===fuId){
+      var isNew=!fus[i].resolutionNote;
+      fus[i].resolutionNote=noteText;
+      fus[i].noteHistory=fus[i].noteHistory||[];
+      fus[i].noteHistory.push({type:isNew?'created':'edited',ts:ts,text:noteText});
+      break;
+    }
+  }
+  arr[idx].followups=fus;
+  markDirty(recId,rt);saveLocal();syncToSheets();
+  toast("Note saved!");
+  refreshProfile(recId,rt);
 }
 
 function deleteFollowUp(recId,fuId,rt){
@@ -944,6 +1045,28 @@ function attachProfileEvents(container,recType,id){
   container.querySelectorAll("[data-addfu]").forEach(function(btn){btn.addEventListener("click",function(){addFollowUp(this.getAttribute("data-addfu"),this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-done-btn").forEach(function(btn){btn.addEventListener("click",function(){toggleFollowUpDone(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-undo")==="1",this.getAttribute("data-rt")||recType);});});
   container.querySelectorAll(".fu-del-btn").forEach(function(btn){btn.addEventListener("click",function(){deleteFollowUp(this.getAttribute("data-recid"),this.getAttribute("data-fuid"),this.getAttribute("data-rt")||recType);});});
+  container.querySelectorAll(".fu-resolution-expand").forEach(function(btn){btn.addEventListener("click",function(){
+    var resId=this.getAttribute("data-resid");
+    var el=document.getElementById(resId);
+    if(!el)return;
+    el.style.display=el.style.display==="block"?"none":"block";
+    if(el.style.display==="block"){var ta=el.querySelector("textarea");if(ta)ta.focus();}
+  });});
+  container.querySelectorAll(".fu-res-save").forEach(function(btn){btn.addEventListener("click",function(){
+    var fuId=this.getAttribute("data-fuid");
+    var recId=this.getAttribute("data-recid");
+    var rt2=this.getAttribute("data-rt")||recType;
+    var ta=this.closest(".fu-resolution-note").querySelector("textarea");
+    var note=ta?ta.value.trim():"";
+    saveResolutionNote(recId,fuId,rt2,note);
+  });});
+  container.querySelectorAll(".fu-history-toggle").forEach(function(btn){btn.addEventListener("click",function(){
+    var histId=this.getAttribute("data-histid");
+    var el=document.getElementById(histId);
+    if(!el)return;
+    el.style.display=el.style.display==="block"?"none":"block";
+    this.textContent=el.style.display==="block"?this.textContent.replace("View","Hide"):this.textContent.replace("Hide","View");
+  });});
   container.querySelectorAll("[data-upload]").forEach(function(btn){btn.addEventListener("click",function(){currentUploadId=this.getAttribute("data-upload");currentUploadType=this.getAttribute("data-rt");document.getElementById("file-input").value="";document.getElementById("file-input").click();});});
   container.querySelectorAll(".att-del").forEach(function(btn){btn.addEventListener("click",function(){deleteAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
   container.querySelectorAll(".att-rename-btn").forEach(function(btn){btn.addEventListener("click",function(){renameAtt(parseInt(this.getAttribute("data-idx")),this.getAttribute("data-id"),this.getAttribute("data-rt"));});});
@@ -1598,5 +1721,16 @@ setInterval(function(){
   }
 },30000);
 </script>
+<div class="fu-note-modal" id="fu-note-modal">
+  <div class="fu-note-modal-inner">
+    <div class="fu-note-modal-title">Add a resolution note</div>
+    <div class="fu-note-modal-sub">Optional — document what happened or the outcome.</div>
+    <textarea id="fu-note-modal-text" placeholder="e.g. Manufacturer confirmed 2 week ETA..."></textarea>
+    <div class="fu-note-modal-btns">
+      <button class="fu-note-modal-skip" id="fu-note-modal-skip">Skip</button>
+      <button class="fu-note-modal-save" id="fu-note-modal-save">Save &amp; Close</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
