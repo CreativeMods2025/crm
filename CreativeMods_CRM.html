@@ -801,10 +801,11 @@ function toggleFollowUpDone(recId,fuId,undo,rt){
     }
   }
   arr[idx].followups=fus;
-  saveLocal();syncToSheets();
+  markDirty(recId,rt);saveLocal();syncToSheets();
   toast(undo?"Marked as pending":"Follow-up complete! ✓");
   refreshProfile(recId,rt);
   renderDash();checkAlerts();
+  if(!undo){showResolutionNoteModal(recId,fuId,rt);}
 }
 
 function deleteFollowUp(recId,fuId,rt){
