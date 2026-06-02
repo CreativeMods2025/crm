@@ -494,6 +494,7 @@ function queueSync(){
 // Track which record IDs have changed since last sync
 var dirtyIds={leads:{},vendors:{}};
 var syncInProgress=false;
+var lastPushTime=0;
 
 function markDirty(id,rt){
   if(rt==="lead")dirtyIds.leads[id]=true;
@@ -506,7 +507,11 @@ function markDeleted(id,rt){
 }
 
 async function syncToSheets(){
-  if(syncInProgress)return; // Prevent overlapping syncs
+  if(syncInProgress)return;
+  // Safety: never push if nothing is dirty - prevents wiping Sheets with empty data
+  var hasDirtyLeads=Object.keys(dirtyIds.leads).length>0;
+  var hasDirtyVendors=Object.keys(dirtyIds.vendors).length>0;
+  if(!hasDirtyLeads&&!hasDirtyVendors){setSyncStatus("synced");return;}
   syncInProgress=true;
   setSyncStatus("syncing");
   try{
@@ -554,8 +559,11 @@ async function syncToSheets(){
       delete dirtyIds.vendors[vid];
     }
 
-    pendingChanges=Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0;
+    pendingChanges=false;
+    lastPushTime=Date.now();
     setSyncStatus("synced");
+    // After pushing, wait 6 seconds then pull fresh data from Sheets
+    setTimeout(function(){pullFromSheets();},6000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -563,9 +571,35 @@ async function syncToSheets(){
   }
 }
 
+async function pullFromSheets(){
+  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
+  if(syncInProgress)return;
+  if(Date.now()-lastPushTime<8000)return;
+  try{
+    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
+    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
+    var sheetsLeads=dedupe(results[0].map(r2l));
+    var sheetsVendors=dedupe(results[1].map(r2v));
+    if(sheetsLeads.length>0){leads=sheetsLeads;}
+    if(sheetsVendors.length>0){vendors=sheetsVendors;}
+    dirtyIds={leads:{},vendors:{}};
+    pendingChanges=false;
+    saveLocal();
+    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+  }catch(e){}
+}
+
+// Auto-poll every 30 seconds so other devices get updates without pressing anything
+setInterval(async function(){
+  if(syncInProgress)return;
+  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
+  await pullFromSheets();
+},30000);
+
 async function apiGet(sheet){
   try{
-    var r=await fetch(API+"?action=getAll&sheet="+sheet,{method:"GET",mode:"cors"});
+    var url=API+"?action=getAll&sheet="+sheet+"&_="+Date.now();
+    var r=await fetch(url,{method:"GET",mode:"cors",cache:"no-store"});
     var d=await r.json();
     return d.slice(1).filter(function(row){return row[0];});
   }catch(e){return[];}
@@ -817,7 +851,7 @@ function toggleCompletedList(elId,toggle){
   toggle.querySelector("span").textContent=hidden?"▼":"▶";
 }
 
-function addFollowUp(id,rt){
+async function addFollowUp(id,rt){
   rt=rt||"lead";
   var lbl=document.getElementById("fu-label-"+id);
   var dt=document.getElementById("fu-date-"+id);
@@ -827,10 +861,11 @@ function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  saveLocal();syncToSheets();
+  markDirty(id,rt);saveLocal();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
+  await syncToSheets();
 }
 
 function toggleFollowUpDone(recId,fuId,undo,rt){
@@ -1570,17 +1605,15 @@ async function loadAll(){
       return changed;
     }
 
-    var addedLeads=safeMerge(leads,sheetsLeads);
-    var addedVendors=safeMerge(vendors,sheetsVendors);
-
-    if(addedLeads>0||addedVendors>0){
-      cleanFollowUps();saveLocal();renderDash();checkAlerts();renderLeads();renderVendors();
-    }
+    // Sheets is master on startup - replace local with Sheets data
+    if(sheetsLeads.length>0){leads=sheetsLeads;}
+    if(sheetsVendors.length>0){vendors=sheetsVendors;}
+    dirtyIds={leads:{},vendors:{}};
+    pendingChanges=false;
+    saveLocal();
+    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
     setSyncStatus("synced");
     if(loadEl)loadEl.style.display="none";
-
-    // Step 3: Push local data up to Sheets to make sure everything is there
-    syncToSheets().catch(function(){});
 
   }catch(e){
     setSyncStatus("error");
@@ -1597,11 +1630,14 @@ document.getElementById("dash-sync-btn").addEventListener("click",async function
   toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    await fullTwoWaySync();
+    await syncToSheets();
+    lastPushTime=0; // Reset so pullFromSheets runs immediately
+    await pullFromSheets();
+    setSyncStatus("synced");
     toast("Sync complete! Data is up to date.");
   }catch(e){
     setSyncStatus("error");
-    toast("Sync failed - your data is still saved locally.",true);
+    toast("Sync failed - check your connection.",true);
   }
 });
 
