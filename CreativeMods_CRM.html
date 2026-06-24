@@ -71,18 +71,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .vlist-header{display:grid;grid-template-columns:2fr 1.5fr 2fr 2fr 1fr;gap:12px;padding:8px 20px;margin-bottom:6px}
 .vlist-header span{font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;font-weight:500}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
-.ct-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;background:#e8e8e8;color:#555}
-.fu-note-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
-.fu-note-modal.active{display:flex}
-.fu-note-modal-inner{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
-.fu-note-modal-title{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
-.fu-note-modal-sub{font-size:12px;color:#888;margin-bottom:14px}
-.fu-note-modal textarea{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box}
-.fu-note-modal-btns{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
-.fu-note-modal-save{padding:8px 18px;background:#cc2222;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
-.fu-note-modal-save:hover{background:#aa1111}
-.fu-note-modal-skip{padding:8px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px}
-.fu-note-modal-skip:hover{background:#eee}
 .bn{background:#e3f2fd;color:#1565c0}
 .bc{background:#fff8e1;color:#e65100}
 .bi{background:#e8f5e9;color:#2e7d32}
@@ -159,10 +147,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fu-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;margin-bottom:8px;gap:8px}
 .fu-item-info{flex:1;min-width:0}
 .fu-label{font-size:13px;font-weight:500;color:#1a1a1a}
-.fu-completed-item{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;padding:7px 12px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:4px;gap:8px;font-size:12px;color:#888}
 .fu-resolution-note{width:100%;margin-top:6px;padding:8px 10px;background:#f0f7f0;border-left:3px solid #4caf50;border-radius:4px;font-size:12px;color:#444;line-height:1.5}
 .fu-resolution-expand{font-size:11px;color:#888;cursor:pointer;text-decoration:underline;flex-shrink:0;margin-left:4px}
 .fu-resolution-expand:hover{color:#555}
+.fu-note-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center}
+.fu-note-modal.active{display:flex}
+.fu-note-modal-inner{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.fu-note-modal-title{font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+.fu-note-modal-sub{font-size:12px;color:#888;margin-bottom:14px}
+.fu-note-modal textarea{width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;resize:vertical;min-height:90px;font-family:inherit;box-sizing:border-box}
+.fu-note-modal-btns{display:flex;gap:10px;margin-top:14px;justify-content:flex-end}
+.fu-note-modal-save{padding:8px 18px;background:#cc2222;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.fu-note-modal-save:hover{background:#aa1111}
+.fu-note-modal-skip{padding:8px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px}
+.fu-note-modal-skip:hover{background:#eee}
+.fu-completed-item{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:4px;gap:8px;font-size:12px;color:#888}
 .fu-completed-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .fu-completed-meta{font-size:11px;color:#2e7d32;flex-shrink:0;white-space:nowrap}
 .fu-completed-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#888;padding:6px 0;margin-top:6px;user-select:none}
@@ -203,11 +202,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dg{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .dt{font-size:14px;font-weight:600;margin-bottom:12px;color:#1a1a1a}
 .mc{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 16px;margin-bottom:8px;cursor:pointer;transition:all 0.15s}
-#due-list{max-height:340px;overflow-y:auto;padding-right:2px}
-#due-list::-webkit-scrollbar{width:4px}
-#due-list::-webkit-scrollbar-track{background:#f5f5f5;border-radius:4px}
-#due-list::-webkit-scrollbar-thumb{background:#ddd;border-radius:4px}
-#due-list::-webkit-scrollbar-thumb:hover{background:#bbb}
 .mc:hover{border-color:#cc2222;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
 .mct{font-size:13px;font-weight:600;color:#1a1a1a}
 .mcs{font-size:12px;color:#888;margin-top:2px}
@@ -227,8 +221,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .topbar{padding:8px 12px;gap:8px;flex-wrap:nowrap}
   .topbar img{height:36px!important}
   .top-search{max-width:none;flex:1}
-  .sync-indicator{display:flex;font-size:10px}
-  #sync-label{display:none}
+  .sync-indicator{display:none}
   .main{padding:12px}
   .stats{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
   .sc{padding:12px}
@@ -397,8 +390,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="fi"><label>Interested in buying</label><input id="lin" placeholder="Duke Dynamics widebody kit"></div>
       <div class="fi"><label>Budget</label><input id="lbu" placeholder="$50,000"></div>
       <div class="fi"><label>Status</label><select id="lst"><option value="new">New</option><option value="contacted">Contacted</option><option value="in progress">In progress</option><option value="closed">Closed</option></select></div>
-      <div class="fi"><label>Customer Type *</label><select id="lct" onchange="toggleCompanyField()"><option value="retail">Retail</option><option value="wholesale">Wholesale</option></select></div>
-      <div class="fi full" id="lco-wrap" style="display:none"><label>Company</label><input id="lco" placeholder="Company name"></div>
       <div class="fi"><label>Follow-up date and time</label><input id="lfd" type="datetime-local"></div>
       <div class="fi full"><label>Follow-up label</label><input id="lfl" placeholder="Follow up on PO#1023"></div>
       <div class="fi full"><label>Street address</label><input id="lstr" placeholder="123 Main St"></div>
@@ -494,7 +485,6 @@ function queueSync(){
 // Track which record IDs have changed since last sync
 var dirtyIds={leads:{},vendors:{}};
 var syncInProgress=false;
-var lastPushTime=0;
 
 function markDirty(id,rt){
   if(rt==="lead")dirtyIds.leads[id]=true;
@@ -507,11 +497,7 @@ function markDeleted(id,rt){
 }
 
 async function syncToSheets(){
-  if(syncInProgress)return;
-  // Safety: never push if nothing is dirty - prevents wiping Sheets with empty data
-  var hasDirtyLeads=Object.keys(dirtyIds.leads).length>0;
-  var hasDirtyVendors=Object.keys(dirtyIds.vendors).length>0;
-  if(!hasDirtyLeads&&!hasDirtyVendors){setSyncStatus("synced");return;}
+  if(syncInProgress)return; // Prevent overlapping syncs
   syncInProgress=true;
   setSyncStatus("syncing");
   try{
@@ -559,11 +545,8 @@ async function syncToSheets(){
       delete dirtyIds.vendors[vid];
     }
 
-    pendingChanges=false;
-    lastPushTime=Date.now();
+    pendingChanges=Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0;
     setSyncStatus("synced");
-    // After pushing, wait 6 seconds then pull fresh data from Sheets
-    setTimeout(function(){pullFromSheets();},6000);
   }catch(e){
     setSyncStatus("error");
   }finally{
@@ -571,35 +554,9 @@ async function syncToSheets(){
   }
 }
 
-async function pullFromSheets(){
-  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
-  if(syncInProgress)return;
-  if(Date.now()-lastPushTime<8000)return;
-  try{
-    var results=await Promise.all([apiGet("Leads"),apiGet("Vendors")]);
-    function dedupe(arr){var seen={};return arr.filter(function(r){if(seen[r.id])return false;seen[r.id]=true;return true;});}
-    var sheetsLeads=dedupe(results[0].map(r2l));
-    var sheetsVendors=dedupe(results[1].map(r2v));
-    if(sheetsLeads.length>0){leads=sheetsLeads;}
-    if(sheetsVendors.length>0){vendors=sheetsVendors;}
-    dirtyIds={leads:{},vendors:{}};
-    pendingChanges=false;
-    saveLocal();
-    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
-  }catch(e){}
-}
-
-// Auto-poll every 30 seconds so other devices get updates without pressing anything
-setInterval(async function(){
-  if(syncInProgress)return;
-  if(Object.keys(dirtyIds.leads).length>0||Object.keys(dirtyIds.vendors).length>0)return;
-  await pullFromSheets();
-},30000);
-
 async function apiGet(sheet){
   try{
-    var url=API+"?action=getAll&sheet="+sheet+"&_="+Date.now();
-    var r=await fetch(url,{method:"GET",mode:"cors",cache:"no-store"});
+    var r=await fetch(API+"?action=getAll&sheet="+sheet,{method:"GET",mode:"cors"});
     var d=await r.json();
     return d.slice(1).filter(function(row){return row[0];});
   }catch(e){return[];}
@@ -629,8 +586,8 @@ async function uploadFileToDrive(file,folderName){
 function gid(){return Date.now().toString(36)+Math.random().toString(36).substr(2,5);}
 
 function cleanCell(v){var s=(v||"").toString().trim();return(s==="#ERROR!"||s==="#REF!"||s==="#VALUE!"||s==="#NAME?"||s==="#DIV/0!")?"":s;}
-function r2l(r){var fus=[];try{var raw=r[11]||"";if(raw.charAt(0)==="["){fus=JSON.parse(raw);}else if(raw&&raw.indexOf("T")>-1&&raw.indexOf("-")>-1){fus=[{id:gid(),date:raw,label:r[12]||"Follow-up",done:false}];}}catch(e){fus=[];}var nts=[];try{var rn=r[13]||"";if(rn.charAt(0)==="["){nts=JSON.parse(rn);}else if(rn){nts=[{id:gid(),text:rn,ts:new Date().toISOString()}];}}catch(e){nts=[];}return{id:r[0],da:r[1],name:r[2]||"",phone:cleanCell(r[3]),email:r[4]||"",make:r[5]||"",model:r[6]||"",year:r[7]||"",interest:r[8]||"",budget:r[9]||"",status:r[10]||"new",followups:fus,notes:nts,attachments:r[14]||"",street:r[15]||"",city:r[16]||"",state:r[17]||"",zip:r[18]||"",country:r[19]||"",customerType:r[20]||"retail",company:r[21]||""};}
-function l2r(l){return[l.id,l.da,l.name,l.phone,l.email,l.make,l.model,l.year,l.interest,l.budget,l.status,JSON.stringify(l.followups||[]),"",JSON.stringify(l.notes||[]),l.attachments,l.street,l.city,l.state,l.zip,l.country,l.customerType||"retail",l.company||""];}
+function r2l(r){var fus=[];try{var raw=r[11]||"";if(raw.charAt(0)==="["){fus=JSON.parse(raw);}else if(raw&&raw.indexOf("T")>-1&&raw.indexOf("-")>-1){fus=[{id:gid(),date:raw,label:r[12]||"Follow-up",done:false}];}}catch(e){fus=[];}var nts=[];try{var rn=r[13]||"";if(rn.charAt(0)==="["){nts=JSON.parse(rn);}else if(rn){nts=[{id:gid(),text:rn,ts:new Date().toISOString()}];}}catch(e){nts=[];}return{id:r[0],da:r[1],name:r[2]||"",phone:cleanCell(r[3]),email:r[4]||"",make:r[5]||"",model:r[6]||"",year:r[7]||"",interest:r[8]||"",budget:r[9]||"",status:r[10]||"new",followups:fus,notes:nts,attachments:r[14]||"",street:r[15]||"",city:r[16]||"",state:r[17]||"",zip:r[18]||"",country:r[19]||""};}
+function l2r(l){return[l.id,l.da,l.name,l.phone,l.email,l.make,l.model,l.year,l.interest,l.budget,l.status,JSON.stringify(l.followups||[]),"",JSON.stringify(l.notes||[]),l.attachments,l.street,l.city,l.state,l.zip,l.country];}
 function r2v(r){var fus=[];try{var rawFu=r[10]||"";if(rawFu.charAt(0)==="["){fus=JSON.parse(rawFu);}else if(rawFu){fus=[];}}catch(e){fus=[];}var atts=r[11]||"";var vnts=[];try{var vrn=r[9]||"";if(vrn.charAt(0)==="["){vnts=JSON.parse(vrn);}else if(vrn){vnts=[{id:gid(),text:vrn,ts:new Date().toISOString()}];}}catch(e){vnts=[];}return{id:r[0],da:r[1],brand:r[2]||"",cname:r[3]||"",cphone:cleanCell(r[4]),cemail:r[5]||"",rname:r[6]||"",rphone:cleanCell(r[7]),cats:r[8]||"",notes:vnts,followups:fus,attachments:atts,street:r[12]||"",city:r[13]||"",state:r[14]||"",zip:r[15]||"",country:r[16]||""};}
 function v2r(v){return[v.id,v.da,v.brand,v.cname,v.cphone,v.cemail,v.rname,v.rphone,v.cats,JSON.stringify(v.notes||[]),JSON.stringify(v.followups||[]),v.attachments,v.street,v.city,v.state,v.zip,v.country];}
 
@@ -711,7 +668,7 @@ function renderDash(){
   }
   var recent=leads.slice().sort(function(a,b){return new Date(b.da)-new Date(a.da);}).slice(0,5);
   var recl=document.getElementById("rec-list");
-  recl.innerHTML=recent.length===0?'<div class="empty">No leads yet</div>':recent.map(function(l){var veh=[l.year,l.make,l.model].filter(Boolean).join(" ")||"No vehicle";var displayName=l.company?esc(l.name)+' / '+esc(l.company):esc(l.name);var ctBadge='<span class="ct-badge">'+(l.customerType||'retail')+'</span>';return'<div class="mc" data-id="'+l.id+'" data-type="lclick"><div style="display:flex;justify-content:space-between;align-items:center"><div class="mct">'+displayName+"</div>"+bdg(l.status)+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:3px">'+ctBadge+'<span class="mcs">'+esc(veh)+"</span></div></div>";}).join("");
+  recl.innerHTML=recent.length===0?'<div class="empty">No leads yet</div>':recent.map(function(l){var veh=[l.year,l.make,l.model].filter(Boolean).join(" ")||"No vehicle";return'<div class="mc" data-id="'+l.id+'" data-type="lclick"><div style="display:flex;justify-content:space-between;align-items:center"><div class="mct">'+esc(l.name)+"</div>"+bdg(l.status)+'</div><div class="mcs">'+esc(veh)+"</div></div>";}).join("");
   recl.querySelectorAll("[data-type=lclick]").forEach(function(el){el.addEventListener("click",function(){nav("leads");openLeadProfile(this.getAttribute("data-id"));});});
 }
 
@@ -800,7 +757,6 @@ function buildFollowUpSection(followups,id,recType){
       var noteText=hasNote?esc(fu.resolutionNote):'';
       var expandLabel=hasNote?'&#128221; Note':'+ Note';
       var history=fu.noteHistory||[];
-      // Build history log
       var historyHtml='';
       if(history.length>0){
         var histId='fhist-'+fu.id;
@@ -851,7 +807,7 @@ function toggleCompletedList(elId,toggle){
   toggle.querySelector("span").textContent=hidden?"▼":"▶";
 }
 
-async function addFollowUp(id,rt){
+function addFollowUp(id,rt){
   rt=rt||"lead";
   var lbl=document.getElementById("fu-label-"+id);
   var dt=document.getElementById("fu-date-"+id);
@@ -861,11 +817,10 @@ async function addFollowUp(id,rt){
   var fu={id:gid(),date:dt.value,label:(lbl?lbl.value.trim():"")||"Follow-up",done:false};
   arr[idx].followups=arr[idx].followups||[];
   arr[idx].followups.push(fu);
-  markDirty(id,rt);saveLocal();
+  markDirty(id,rt);saveLocal();syncToSheets();
   toast("Follow-up added!");
   refreshProfile(id,rt);
   renderDash();checkAlerts();
-  await syncToSheets();
 }
 
 function toggleFollowUpDone(recId,fuId,undo,rt){
@@ -896,10 +851,12 @@ function showResolutionNoteModal(recId,fuId,rt){
   modal.classList.add("active");
   setTimeout(function(){textarea.focus();},100);
   function closeModal(){modal.classList.remove("active");}
-  var newSave=document.getElementById("fu-note-modal-save").cloneNode(true);
-  var newSkip=document.getElementById("fu-note-modal-skip").cloneNode(true);
-  document.getElementById("fu-note-modal-save").parentNode.replaceChild(newSave,document.getElementById("fu-note-modal-save"));
-  document.getElementById("fu-note-modal-skip").parentNode.replaceChild(newSkip,document.getElementById("fu-note-modal-skip"));
+  var saveBtn=document.getElementById("fu-note-modal-save");
+  var skipBtn=document.getElementById("fu-note-modal-skip");
+  var newSave=saveBtn.cloneNode(true);
+  var newSkip=skipBtn.cloneNode(true);
+  saveBtn.parentNode.replaceChild(newSave,saveBtn);
+  skipBtn.parentNode.replaceChild(newSkip,skipBtn);
   newSave.addEventListener("click",function(){
     var note=textarea.value.trim();
     if(note){saveResolutionNote(recId,fuId,rt,note);}
@@ -1012,8 +969,6 @@ function buildLeadProfile(l){
   html+='<div class="section-divider">Contact information</div><div class="profile-grid">';
   html+=pf("Name","name",l.name,"text",l.id,"lead");html+=pf("Phone","phone",l.phone,"phone",l.id,"lead");
   html+=pf("Email","email",l.email,"email",l.id,"lead");html+=pf("Status","status",l.status,"select",l.id,"lead",["new","contacted","in progress","closed"]);
-  html+=pf("Customer Type","customerType",l.customerType||"retail","select",l.id,"lead",["retail","wholesale"]);
-  if((l.customerType||"retail")==="wholesale"){html+=pf("Company","company",l.company||"","text",l.id,"lead");}
   html+='</div><div class="section-divider">Address</div><div class="profile-grid">';
   html+=pf("Street","street",l.street,"text",l.id,"lead");html+=pf("City","city",l.city,"text",l.id,"lead");
   html+=pf("State","state",l.state,"text",l.id,"lead");html+=pf("Zip code","zip",l.zip,"text",l.id,"lead");
@@ -1122,7 +1077,7 @@ async function addLink(id,rt){
   // Clear input fields
   if(lel)lel.value="";
   if(uel)uel.value="";
-  saveLocal();
+  markDirty(id,rt);saveLocal();
   toast("Link saved! Syncing...");
   refreshProfile(id,rt);
   // Sync immediately (don't queue) so it persists before page reload
@@ -1310,10 +1265,6 @@ function saveFieldEdit(el,field,id,rt){
   var idx=getRecordIdx(id,rt);if(idx===-1)return;
   var arr=rt==="lead"?leads:vendors;
   arr[idx][field]=i.value;
-  // If customerType changed to retail, clear company so it doesn't show on dashboard
-  if(field==="customerType" && i.value==="retail"){
-    arr[idx].company="";
-  }
   saveLocal();
   markDirty(id,rt);
   toast("Saved!");
@@ -1420,22 +1371,13 @@ function deleteNote(id,nid,rt){
 
 function openLF(){
   editLid=null;document.getElementById("lmtitle").textContent="Add new lead";
-  ["ln","lp","le","lmk","lmd","lyr","lin","lbu","lfd","lfl","lstr","lcity","lstate","lzip","lcountry","lno","lco"].forEach(function(i){document.getElementById(i).value="";});
-  document.getElementById("lst").value="new";
-  document.getElementById("lct").value="retail";
-  document.getElementById("lco-wrap").style.display="none";
-  document.getElementById("lmodal").classList.add("open");
+  ["ln","lp","le","lmk","lmd","lyr","lin","lbu","lfd","lfl","lstr","lcity","lstate","lzip","lcountry","lno"].forEach(function(i){document.getElementById(i).value="";});
+  document.getElementById("lst").value="new";document.getElementById("lmodal").classList.add("open");
 }
 function closeLM(){document.getElementById("lmodal").classList.remove("open");}
-function toggleCompanyField(){
-  var ct=document.getElementById("lct").value;
-  var wrap=document.getElementById("lco-wrap");
-  if(wrap)wrap.style.display=ct==="wholesale"?"block":"none";
-}
 
 function saveLead(){
   var name=document.getElementById("ln").value.trim();if(!name){toast("Please enter a name",true);return;}
-  var customerType=document.getElementById("lct").value;if(!customerType){toast("Please select a Customer Type",true);return;}
   var isEdit=!!editLid;
   var origAtts=isEdit?(getRecord(editLid,"lead")||{attachments:""}).attachments||"":"";
   var origFollowups=isEdit?(getRecord(editLid,"lead")||{followups:[]}).followups||[]:"";
@@ -1444,7 +1386,7 @@ function saveLead(){
   var qfd=document.getElementById("lfd").value;
   var qfl=document.getElementById("lfl").value.trim();
   if(qfd){quickFus.push({id:gid(),date:qfd,label:qfl||"Follow-up",done:false});}
-  var lead={id:isEdit?editLid:gid(),da:isEdit?(getRecord(editLid,"lead")||{da:new Date().toISOString()}).da:new Date().toISOString(),name:name,phone:document.getElementById("lp").value.trim(),email:document.getElementById("le").value.trim(),make:document.getElementById("lmk").value.trim(),model:document.getElementById("lmd").value.trim(),year:document.getElementById("lyr").value.trim(),interest:document.getElementById("lin").value.trim(),budget:document.getElementById("lbu").value.trim(),status:document.getElementById("lst").value,customerType:document.getElementById("lct").value||"retail",company:document.getElementById("lco").value.trim(),followups:quickFus,notes:(function(){var nv=document.getElementById("lno").value.trim();var existing=isEdit?(getRecord(editLid,"lead")||{notes:[]}).notes||[]:[];if(Array.isArray(existing)&&existing.length>0){return existing;}return nv?[{id:gid(),text:nv,ts:new Date().toISOString()}]:[];}()),attachments:origAtts,street:document.getElementById("lstr").value.trim(),city:document.getElementById("lcity").value.trim(),state:document.getElementById("lstate").value.trim(),zip:document.getElementById("lzip").value.trim(),country:document.getElementById("lcountry").value.trim()};
+  var lead={id:isEdit?editLid:gid(),da:isEdit?(getRecord(editLid,"lead")||{da:new Date().toISOString()}).da:new Date().toISOString(),name:name,phone:document.getElementById("lp").value.trim(),email:document.getElementById("le").value.trim(),make:document.getElementById("lmk").value.trim(),model:document.getElementById("lmd").value.trim(),year:document.getElementById("lyr").value.trim(),interest:document.getElementById("lin").value.trim(),budget:document.getElementById("lbu").value.trim(),status:document.getElementById("lst").value,followups:quickFus,notes:(function(){var nv=document.getElementById("lno").value.trim();var existing=isEdit?(getRecord(editLid,"lead")||{notes:[]}).notes||[]:[];if(Array.isArray(existing)&&existing.length>0){return existing;}return nv?[{id:gid(),text:nv,ts:new Date().toISOString()}]:[];}()),attachments:origAtts,street:document.getElementById("lstr").value.trim(),city:document.getElementById("lcity").value.trim(),state:document.getElementById("lstate").value.trim(),zip:document.getElementById("lzip").value.trim(),country:document.getElementById("lcountry").value.trim()};
   if(isEdit){var idx=getRecordIdx(editLid,"lead");if(idx>-1)leads[idx]=lead;}else{leads.push(lead);}
   saveLocal();
   markDirty(lead.id,"lead");
@@ -1605,15 +1547,17 @@ async function loadAll(){
       return changed;
     }
 
-    // Sheets is master on startup - replace local with Sheets data
-    if(sheetsLeads.length>0){leads=sheetsLeads;}
-    if(sheetsVendors.length>0){vendors=sheetsVendors;}
-    dirtyIds={leads:{},vendors:{}};
-    pendingChanges=false;
-    saveLocal();
-    cleanFollowUps();renderDash();checkAlerts();renderLeads();renderVendors();
+    var addedLeads=safeMerge(leads,sheetsLeads);
+    var addedVendors=safeMerge(vendors,sheetsVendors);
+
+    if(addedLeads>0||addedVendors>0){
+      cleanFollowUps();saveLocal();renderDash();checkAlerts();renderLeads();renderVendors();
+    }
     setSyncStatus("synced");
     if(loadEl)loadEl.style.display="none";
+
+    // Step 3: Push local data up to Sheets to make sure everything is there
+    syncToSheets().catch(function(){});
 
   }catch(e){
     setSyncStatus("error");
@@ -1630,14 +1574,11 @@ document.getElementById("dash-sync-btn").addEventListener("click",async function
   toast("Syncing with Google Sheets...");
   setSyncStatus("syncing");
   try{
-    await syncToSheets();
-    lastPushTime=0; // Reset so pullFromSheets runs immediately
-    await pullFromSheets();
-    setSyncStatus("synced");
+    await fullTwoWaySync();
     toast("Sync complete! Data is up to date.");
   }catch(e){
     setSyncStatus("error");
-    toast("Sync failed - check your connection.",true);
+    toast("Sync failed - your data is still saved locally.",true);
   }
 });
 
