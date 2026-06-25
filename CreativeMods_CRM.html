@@ -173,6 +173,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fu-tag.yellow{background:#f5a800;color:#1a1a1a}
 .fu-tag.red{background:#cc2222}
 .mc-fu-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.due-scroll{max-height:340px;overflow-y:auto;padding-right:2px}
+.due-scroll::-webkit-scrollbar{width:3px}
+.due-scroll::-webkit-scrollbar-track{background:#f0f0f0;border-radius:4px}
+.due-scroll::-webkit-scrollbar-thumb{background:#cc2222;border-radius:4px}
 .fu-date{font-size:11px;color:#888;margin-top:2px}
 .fu-actions{display:flex;gap:6px;flex-shrink:0}
 .fu-done-btn{padding:4px 8px;font-size:12px;border-radius:6px;border:1px solid #c8e6c9;background:#fff;cursor:pointer;color:#2e7d32}
@@ -335,7 +339,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div id="dash-loading" style="text-align:center;padding:20px;color:#888;font-size:13px;display:none">&#8635; Loading data from Google Sheets...</div>
     <div class="stats" id="stats"></div>
     <div class="dg">
-      <div><div class="dt">&#128197; Follow-ups due</div><div id="due-list"></div></div>
+      <div><div class="dt">&#128197; Follow-ups due</div><div class="due-scroll" id="due-list"></div></div>
       <div><div class="dt">&#128338; Recent leads</div><div id="rec-list"></div></div>
     </div>
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
